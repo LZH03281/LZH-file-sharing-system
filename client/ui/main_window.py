@@ -3,8 +3,10 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
     QLineEdit,
     QMainWindow,
     QMessageBox,
@@ -17,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from api_client.client import ApiClient, ApiError
+from ui.style import APP_STYLE
 from workers.transfer_worker import TransferThread
 
 
@@ -29,7 +32,13 @@ class MainWindow(QMainWindow):
         self.files: list[dict] = []
         self.worker: TransferThread | None = None
         self.setWindowTitle("共享文件服务器")
-        self.resize(980, 620)
+        self.resize(1060, 680)
+        self.setStyleSheet(APP_STYLE)
+
+        title_label = QLabel("共享文件服务器")
+        title_label.setObjectName("titleLabel")
+        subtitle_label = QLabel("简洁、安全地管理团队共享文件")
+        subtitle_label.setObjectName("subtitleLabel")
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("输入文件名搜索")
@@ -37,21 +46,36 @@ class MainWindow(QMainWindow):
         self.search_button = QPushButton("搜索")
         self.search_button.clicked.connect(self.search_files)
         self.refresh_button = QPushButton("刷新")
+        self.refresh_button.setObjectName("secondaryButton")
         self.refresh_button.clicked.connect(self.refresh_files)
         self.logout_button = QPushButton("退出登录")
+        self.logout_button.setObjectName("secondaryButton")
         self.logout_button.clicked.connect(self.logout_requested.emit)
 
         top_layout = QHBoxLayout()
+        top_layout.setSpacing(10)
         top_layout.addWidget(self.search_input)
         top_layout.addWidget(self.search_button)
         top_layout.addWidget(self.refresh_button)
         top_layout.addWidget(self.logout_button)
 
+        header_layout = QHBoxLayout()
+        header_text_layout = QVBoxLayout()
+        header_text_layout.setSpacing(4)
+        header_text_layout.addWidget(title_label)
+        header_text_layout.addWidget(subtitle_label)
+        header_layout.addLayout(header_text_layout)
+        header_layout.addStretch()
+
         self.table = QTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels(["文件名", "大小", "上传者", "可见性", "MIME", "上传时间", "可删除"])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setMinimumSectionSize(90)
 
         self.visibility_box = QComboBox()
         self.visibility_box.addItems(["shared", "private"])
@@ -60,21 +84,34 @@ class MainWindow(QMainWindow):
         self.download_button = QPushButton("下载")
         self.download_button.clicked.connect(self.download_file)
         self.delete_button = QPushButton("删除")
+        self.delete_button.setObjectName("dangerButton")
         self.delete_button.clicked.connect(self.delete_file)
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
 
         action_layout = QHBoxLayout()
+        action_layout.setSpacing(10)
+        action_layout.addWidget(QLabel("可见性"))
         action_layout.addWidget(self.visibility_box)
         action_layout.addWidget(self.upload_button)
         action_layout.addWidget(self.download_button)
         action_layout.addWidget(self.delete_button)
         action_layout.addWidget(self.progress_bar)
 
+        table_card = QFrame()
+        table_card.setObjectName("card")
+        table_layout = QVBoxLayout()
+        table_layout.setContentsMargins(18, 18, 18, 18)
+        table_layout.addWidget(self.table)
+        table_card.setLayout(table_layout)
+
         content = QWidget()
         layout = QVBoxLayout()
+        layout.setContentsMargins(24, 22, 24, 22)
+        layout.setSpacing(16)
+        layout.addLayout(header_layout)
         layout.addLayout(top_layout)
-        layout.addWidget(self.table)
+        layout.addWidget(table_card)
         layout.addLayout(action_layout)
         content.setLayout(layout)
         self.setCentralWidget(content)
