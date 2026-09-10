@@ -37,6 +37,14 @@ class ApiClient:
         self.current_user = data["user"]
         return data
 
+    def register(self, username: str, password: str) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/auth/register",
+            json={"username": username, "password": password},
+            auth=False,
+        )
+
     def logout(self) -> None:
         self.access_token = None
         self.current_user = None

@@ -7,7 +7,7 @@ from app.core.errors import AppError
 from app.core.security import create_access_token, verify_password
 from app.models.models import UserModel
 from app.repositories.sqlalchemy import UserRepository
-from app.schemas.auth import CreateUserRequest, LoginRequest, LoginResponse, UserSummary
+from app.schemas.auth import CreateUserRequest, LoginRequest, LoginResponse, RegisterRequest, UserSummary
 from app.services.audit import AuditService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -29,6 +29,21 @@ def login(
         access_token=create_access_token(str(user.id), settings),
         user=UserSummary.model_validate(user),
     )
+
+
+@router.post("/register", response_model=UserSummary, status_code=201)
+def register(
+    data: RegisterRequest,
+    db: Session = Depends(get_db),
+) -> UserSummary:
+    user = UserRepository(db).create(data.username, data.password, "user")
+    AuditService(db).record(
+        "register",
+        "success",
+        user=user,
+        detail=f"registered={user.username}, role=user",
+    )
+    return UserSummary.model_validate(user)
 
 
 @router.get("/me", response_model=UserSummary)

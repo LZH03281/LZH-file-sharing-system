@@ -37,8 +37,8 @@ class MainWindow(QMainWindow):
 
         title_label = QLabel("共享文件服务器")
         title_label.setObjectName("titleLabel")
-        subtitle_label = QLabel("简洁、安全地管理团队共享文件")
-        subtitle_label.setObjectName("subtitleLabel")
+        self.subtitle_label = QLabel("简洁、安全地管理团队共享文件")
+        self.subtitle_label.setObjectName("subtitleLabel")
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("输入文件名搜索")
@@ -63,7 +63,7 @@ class MainWindow(QMainWindow):
         header_text_layout = QVBoxLayout()
         header_text_layout.setSpacing(4)
         header_text_layout.addWidget(title_label)
-        header_text_layout.addWidget(subtitle_label)
+        header_text_layout.addWidget(self.subtitle_label)
         header_layout.addLayout(header_text_layout)
         header_layout.addStretch()
 
@@ -117,12 +117,20 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(content)
 
     def refresh_files(self) -> None:
+        self.update_user_summary()
         try:
             self.files = self.api_client.list_files()
         except ApiError as exc:
             self.handle_api_error(exc)
             return
         self.render_files()
+
+    def update_user_summary(self) -> None:
+        user = self.api_client.current_user or {}
+        username = user.get("username", "未登录")
+        role = user.get("role", "user")
+        role_text = "管理员" if role == "admin" else "普通用户"
+        self.subtitle_label.setText(f"当前用户：{username}（{role_text}）")
 
     def search_files(self) -> None:
         query = self.search_input.text().strip()

@@ -56,6 +56,24 @@ def test_login_and_me(tmp_path: Path) -> None:
     assert response.json()["role"] == "admin"
 
 
+def test_public_register_creates_normal_user(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+
+    register_response = client.post(
+        "/auth/register",
+        json={"username": "newuser", "password": "newuser123"},
+    )
+
+    assert register_response.status_code == 201
+    assert register_response.json()["username"] == "newuser"
+    assert register_response.json()["role"] == "user"
+
+    headers = auth_headers(client, "newuser", "newuser123")
+    me_response = client.get("/auth/me", headers=headers)
+    assert me_response.status_code == 200
+    assert me_response.json()["role"] == "user"
+
+
 def test_upload_list_search_download_delete_flow(tmp_path: Path) -> None:
     client = make_client(tmp_path)
     headers = auth_headers(client)
