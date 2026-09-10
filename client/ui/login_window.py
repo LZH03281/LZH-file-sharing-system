@@ -157,13 +157,20 @@ class RegisterDialog(QDialog):
             self.status_label.setText("两次输入的密码不一致")
             return
 
+        ok_button = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
+        cancel_button = self.buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        ok_button.setEnabled(False)
+        cancel_button.setEnabled(False)
+        self.status_label.setText("正在注册...")
         try:
             self.api_client.register(username, password)
         except ApiError as exc:
             self.status_label.setText(exc.message)
+            ok_button.setEnabled(True)
+            cancel_button.setEnabled(True)
             QMessageBox.warning(self, "注册失败", exc.message)
             return
 
         self.username = username
-        QMessageBox.information(self, "注册成功", "账号已创建，请返回登录")
         self.accept()
+        QMessageBox.information(self.parentWidget(), "注册成功", "账号已创建，请使用新账号登录")
