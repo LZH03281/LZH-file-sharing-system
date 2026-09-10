@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 
-from app.api import auth, files
+from app.api import auth, files, logs
 from app.core.config import Settings
 from app.core.errors import AppError, app_error_handler, http_error_handler
 from app.db.database import init_db, make_session_factory
@@ -34,6 +34,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(files.router)
+    app.include_router(logs.router)
     return app
 
 

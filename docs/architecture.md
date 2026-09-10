@@ -52,8 +52,6 @@
 ├── README.md
 ├── docs/
 │   ├── architecture.md
-│   ├── api.md
-│   ├── test-plan.md
 │   └── ubuntu-deploy.md
 ├── server/
 │   ├── requirements.txt
@@ -63,7 +61,7 @@
 │   │   │   ├── auth.py
 │   │   │   ├── deps.py
 │   │   │   ├── files.py
-│   │   │   └── logs.py        # 后续增强
+│   │   │   └── logs.py
 │   │   ├── core/
 │   │   │   ├── config.py
 │   │   │   ├── errors.py
@@ -107,7 +105,7 @@
 | POST | `/files/upload` | 上传文件 | 登录用户 |
 | GET | `/files/{file_id}/download` | 下载文件 | 有查看权限的用户 |
 | DELETE | `/files/{file_id}` | 删除文件 | 所有者或管理员 |
-| GET | `/logs` | 查询操作日志 | 管理员，后续增强 |
+| GET | `/logs` | 查询操作日志 | 管理员 |
 
 登录接口接收 JSON 用户名和密码，成功后返回 `access_token`、`token_type` 和用户摘要。上传使用 `multipart/form-data`，包含 `file` 和 `visibility`。下载返回文件流，并通过 `Content-Disposition` 提供原始文件名。
 
@@ -149,7 +147,7 @@ owner_id, owner_name, created_at, can_delete
         ↓
 生成 UUID，将临时文件原子移动为最终文件名
         ↓
-写入文件元数据，后续增强再补操作日志
+写入文件元数据和操作日志
         ↓
 返回文件摘要
 ```
@@ -201,7 +199,7 @@ owner_id, owner_name, created_at, can_delete
 | sha256 | string | 完整性摘要 |
 | created_at | datetime, index | UTC 上传时间 |
 
-### 7.3 operation_logs（后续增强）
+### 7.3 operation_logs
 
 | 字段 | 类型/约束 | 说明 |
 | --- | --- | --- |
@@ -328,9 +326,9 @@ http://<Ubuntu虚拟机IP>:8000
 
 验收：客户端完成文件全生命周期；上传/下载在后台线程执行；删除前确认；服务断开、权限不足和文件超限有明确提示。
 
-### 第四阶段：日志、管理、安全加固和部署（后续增强）
+### 第四阶段：日志、管理、安全加固和部署基础版
 
-在主干可演示后再完善操作日志与管理员界面，执行更完整的安全测试，编写 Ubuntu/systemd 部署文档。
+完善操作日志与管理员日志接口，执行基础安全测试，编写 Ubuntu/systemd 部署文档。管理员界面、日志筛选和更强密码哈希作为后续增强。
 
 验收：管理员可查询日志；越权、超限和路径穿越测试通过；按文档可在 Ubuntu Server 从干净环境启动，并由 Windows 客户端连接。
 
@@ -352,4 +350,6 @@ http://<Ubuntu虚拟机IP>:8000
 
 第三阶段已完成：已实现 PyQt6 登录窗口、文件列表主窗口、上传、下载、删除、刷新、搜索、shared/private 选择和基础传输进度。
 
-项目第一版主干到此完成。后续小组成员可以围绕客户端美化、真实上传进度、操作日志、管理员功能、部署文档和答辩材料继续分工。
+第四阶段基础版已完成：已加入操作日志表、管理员日志接口、关键操作日志记录、基础安全测试和 Ubuntu Server 部署文档。
+
+项目基础版到此完成。后续小组成员可以围绕客户端美化、真实上传进度、管理员可视化界面、日志筛选、更强密码哈希和答辩材料继续分工。

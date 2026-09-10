@@ -187,3 +187,36 @@ def test_path_like_upload_name_is_sanitized(tmp_path: Path) -> None:
     assert response.status_code == 201
     assert response.json()["original_name"] == "evil.txt"
     assert not (tmp_path / "evil.txt").exists()
+
+
+def test_admin_can_view_operation_logs(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    headers = auth_headers(client)
+
+    upload_response = client.post(
+        "/files/upload",
+        files={"file": ("log-demo.txt", b"log", "text/plain")},
+        headers=headers,
+    )
+    file_id = upload_response.json()["id"]
+    assert client.get(f"/files/{file_id}/download", headers=headers).status_code == 200
+    assert client.delete(f"/files/{file_id}", headers=headers).status_code == 204
+
+    logs_response = client.get("/logs", headers=headers)
+
+    assert logs_response.status_code == 200
+    actions = [item["action"] for item in logs_response.json()]
+    assert "upload" in actions
+    assert "download" in actions
+    assert "delete" in actions
+
+
+def test_only_admin_can_view_logs(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    create_user(client, "alice", "alice123")
+    alice_headers = auth_headers(client, "alice", "alice123")
+
+    response = client.get("/logs", headers=alice_headers)
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "PERMISSION_DENIED"

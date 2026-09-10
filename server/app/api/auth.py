@@ -8,6 +8,7 @@ from app.core.security import create_access_token, verify_password
 from app.models.models import UserModel
 from app.repositories.sqlalchemy import UserRepository
 from app.schemas.auth import CreateUserRequest, LoginRequest, LoginResponse, UserSummary
+from app.services.audit import AuditService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -18,9 +19,12 @@ def login(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> LoginResponse:
+    audit = AuditService(db)
     user = UserRepository(db).get_by_username(data.username)
     if user is None or not user.enabled or not verify_password(data.password, user.password_hash):
+        audit.record("login", "failed", detail=f"username={data.username}")
         raise AppError("INVALID_CREDENTIALS", "用户名或密码错误", 401)
+    audit.record("login", "success", user=user)
     return LoginResponse(
         access_token=create_access_token(str(user.id), settings),
         user=UserSummary.model_validate(user),
@@ -39,4 +43,10 @@ def create_user(
     current_user: UserModel = Depends(require_admin),
 ) -> UserSummary:
     user = UserRepository(db).create(data.username, data.password, data.role)
+    AuditService(db).record(
+        "create_user",
+        "success",
+        user=current_user,
+        detail=f"created={user.username}, role={user.role}",
+    )
     return UserSummary.model_validate(user)

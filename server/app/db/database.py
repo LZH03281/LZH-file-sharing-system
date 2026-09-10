@@ -20,11 +20,11 @@ def make_session_factory(settings: Settings) -> sessionmaker[Session]:
 
 
 def init_db(settings: Settings, session_factory: sessionmaker[Session]) -> None:
-    from app.models.models import FileModel, UserModel
+    import app.models.models
 
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     bind = session_factory.kw["bind"]
-    Base.metadata.create_all(bind=bind, tables=[UserModel.__table__, FileModel.__table__])
+    Base.metadata.create_all(bind=bind)
 
 
 def session_scope(session_factory: sessionmaker[Session]) -> Generator[Session]:

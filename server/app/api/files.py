@@ -8,6 +8,7 @@ from app.core.errors import AppError
 from app.models.models import UserModel
 from app.repositories.sqlalchemy import SqlAlchemyFileRepository
 from app.schemas.files import FileSummary
+from app.services.audit import AuditService
 from app.services.storage import StorageService
 
 router = APIRouter(prefix="/files", tags=["files"])
@@ -49,7 +50,15 @@ async def upload_file(
         record = repository.add(stored, current_user, visibility)
     except Exception:
         storage.delete(stored.stored_name)
+        AuditService(repository.db).record("upload", "failed", user=current_user, detail=stored.original_name)
         raise
+    AuditService(repository.db).record(
+        "upload",
+        "success",
+        user=current_user,
+        file_id=record.id,
+        file_name=record.original_name,
+    )
     return FileSummary.from_model(record, current_user.id, current_user.role)
 
 
@@ -62,6 +71,13 @@ def download_file(
 ) -> FileResponse:
     record = repository.get_for_user(file_id, current_user)
     path = storage.resolve_existing(record.stored_name)
+    AuditService(repository.db).record(
+        "download",
+        "success",
+        user=current_user,
+        file_id=record.id,
+        file_name=record.original_name,
+    )
     return FileResponse(
         path=path,
         media_type=record.content_type,
@@ -77,9 +93,18 @@ def delete_file(
     current_user: UserModel = Depends(get_current_user),
 ) -> Response:
     record = repository.get_for_delete(file_id, current_user)
+    file_name = record.original_name
+    stored_name = record.stored_name
     repository.delete(record)
     try:
-        storage.delete(record.stored_name)
+        storage.delete(stored_name)
     except AppError:
         pass
+    AuditService(repository.db).record(
+        "delete",
+        "success",
+        user=current_user,
+        file_id=file_id,
+        file_name=file_name,
+    )
     return Response(status_code=204)
