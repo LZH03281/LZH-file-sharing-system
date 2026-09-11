@@ -75,10 +75,14 @@ class ApiClient:
     def search_files(self, query: str) -> list[dict[str, Any]]:
         return self._request("GET", "/files/search", params={"q": query})
 
+    def search_files_by_owner_id(self, owner_id: int) -> list[dict[str, Any]]:
+        return self._request("GET", "/files/search/owner", params={"owner_id": owner_id})
+
     def upload_file(
         self,
         path: str | Path,
         visibility: str = "shared",
+        access_password: str | None = None,
         progress: ProgressCallback | None = None,
     ) -> dict[str, Any]:
         file_path = Path(path)
@@ -86,7 +90,10 @@ class ApiClient:
             progress(0, file_path.stat().st_size)
         with file_path.open("rb") as source:
             files = {"file": (file_path.name, source, "application/octet-stream")}
-            data = self._request("POST", "/files/upload", files=files, data={"visibility": visibility})
+            form_data = {"visibility": visibility}
+            if access_password:
+                form_data["access_password"] = access_password
+            data = self._request("POST", "/files/upload", files=files, data=form_data)
         if progress:
             size = file_path.stat().st_size
             progress(size, size)
@@ -96,9 +103,11 @@ class ApiClient:
         self,
         file_id: str,
         target_path: str | Path,
+        access_password: str | None = None,
         progress: ProgressCallback | None = None,
     ) -> None:
-        response = self._raw_request("GET", f"/files/{file_id}/download", stream=True)
+        params = {"access_password": access_password} if access_password else None
+        response = self._raw_request("GET", f"/files/{file_id}/download", params=params, stream=True)
         total = int(response.headers.get("content-length") or 0)
         target = Path(target_path)
         tmp_target = target.with_name(target.name + ".downloading")

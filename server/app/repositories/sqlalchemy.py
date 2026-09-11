@@ -1,4 +1,4 @@
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.errors import AppError
@@ -30,11 +30,21 @@ class UserRepository:
         statement = select(func.count()).select_from(FileModel).where(FileModel.owner_id == user_id)
         return self.db.scalar(statement) or 0
 
+    def next_available_id(self) -> int:
+        used_ids = list(self.db.scalars(select(UserModel.id).order_by(UserModel.id.asc())))
+        expected_id = 1
+        for user_id in used_ids:
+            if user_id > expected_id:
+                break
+            if user_id == expected_id:
+                expected_id += 1
+        return expected_id
+
     def transfer_files_to_user(self, from_user_id: int, to_user_id: int, visibility: str = "shared") -> int:
         statement = (
             update(FileModel)
             .where(FileModel.owner_id == from_user_id)
-            .values(owner_id=to_user_id, visibility=visibility)
+            .values(owner_id=to_user_id, visibility=visibility, access_password_hash=None)
         )
         result = self.db.execute(statement)
         self.db.commit()
@@ -43,7 +53,12 @@ class UserRepository:
     def create(self, username: str, password: str, role: str = "user") -> UserModel:
         if self.get_by_username(username) is not None:
             raise AppError("USERNAME_EXISTS", "用户名已存在", 409)
-        user = UserModel(username=username, password_hash=hash_password(password), role=role)
+        user = UserModel(
+            id=self.next_available_id(),
+            username=username,
+            password_hash=hash_password(password),
+            role=role,
+        )
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)
@@ -67,7 +82,7 @@ class SqlAlchemyFileRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def add(self, stored: StoredFile, owner: UserModel, visibility: str) -> FileModel:
+    def add(self, stored: StoredFile, owner: UserModel, visibility: str, access_password_hash: str | None = None) -> FileModel:
         record = FileModel(
             id=stored.id,
             stored_name=stored.stored_name,
@@ -76,6 +91,7 @@ class SqlAlchemyFileRepository:
             size=stored.size,
             content_type=stored.content_type,
             visibility=visibility,
+            access_password_hash=access_password_hash,
             sha256=stored.sha256,
         )
         self.db.add(record)
@@ -91,6 +107,14 @@ class SqlAlchemyFileRepository:
         statement = (
             self._visible_statement(user)
             .where(FileModel.original_name.ilike(f"%{query}%"))
+            .order_by(FileModel.created_at.desc())
+        )
+        return list(self.db.scalars(statement).unique())
+
+    def search_visible_by_owner_id(self, user: UserModel, owner_id: int) -> list[FileModel]:
+        statement = (
+            self._visible_statement(user)
+            .where(FileModel.owner_id == owner_id)
             .order_by(FileModel.created_at.desc())
         )
         return list(self.db.scalars(statement).unique())
@@ -116,7 +140,7 @@ class SqlAlchemyFileRepository:
         statement = select(FileModel).options(joinedload(FileModel.owner))
         if user.role == "admin":
             return statement
-        return statement.where(or_(FileModel.visibility == "shared", FileModel.owner_id == user.id))
+        return statement
 
 
 def ensure_default_admin(db: Session, username: str, password: str) -> None:

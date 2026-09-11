@@ -33,6 +33,7 @@ class FileModel(Base):
     size: Mapped[int] = mapped_column(Integer, nullable=False)
     content_type: Mapped[str] = mapped_column(String(120), nullable=False)
     visibility: Mapped[str] = mapped_column(String(20), index=True, nullable=False, default="shared")
+    access_password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -7,20 +7,73 @@ QWidget {
 }
 
 QFrame#card {
-    background: #ffffff;
+    background: #fffdf8;
     border: 1px solid #f0d9b8;
-    border-radius: 8px;
+    border-radius: 14px;
+}
+
+QFrame#heroCard {
+    background: #fff2dc;
+    border: 1px solid #efcf9d;
+    border-radius: 18px;
 }
 
 QLabel#titleLabel {
     color: #8a4b1f;
-    font-size: 24px;
+    font-size: 26px;
     font-weight: 700;
 }
 
 QLabel#subtitleLabel,
 QLabel#statusLabel {
     color: #8b765f;
+}
+
+QLabel#sectionTitleLabel {
+    color: #6f4218;
+    font-size: 16px;
+    font-weight: 700;
+    padding-bottom: 6px;
+}
+
+QLabel#profileNameLabel {
+    color: #5f3613;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+QLabel#avatarLabel {
+    background: #f4b860;
+    color: #ffffff;
+    border-radius: 28px;
+    min-width: 56px;
+    min-height: 56px;
+    font-size: 24px;
+    font-weight: 800;
+}
+
+QLabel#pillLabel {
+    background: #fff2dc;
+    color: #8a4b1f;
+    border: 1px solid #edcfa5;
+    border-radius: 12px;
+    padding: 4px 10px;
+    font-weight: 600;
+}
+
+QLabel#mutedLabel {
+    color: #9b8064;
+}
+
+QLabel#valueLabel {
+    color: #4d3520;
+    font-weight: 700;
+}
+
+QFrame#infoRow {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #f2dfc4;
 }
 
 QLineEdit,
@@ -67,6 +120,19 @@ QPushButton#secondaryButton {
 
 QPushButton#secondaryButton:hover {
     background: #ffe6bd;
+}
+
+QPushButton#profileButton {
+    background: #ffffff;
+    border: 1px solid #edcfa5;
+    color: #7a4b1f;
+    border-radius: 18px;
+    padding: 9px 16px;
+}
+
+QPushButton#profileButton:hover {
+    background: #fff7e8;
+    border: 1px solid #e6a24e;
 }
 
 QPushButton#dangerButton {

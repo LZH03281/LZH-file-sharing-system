@@ -224,7 +224,7 @@ def test_delete_user_transfers_files_to_initial_admin(tmp_path: Path) -> None:
     upload_response = client.post(
         "/files/upload",
         files={"file": ("owned.txt", b"owned", "text/plain")},
-        data={"visibility": "private"},
+        data={"visibility": "private", "access_password": "Abc123"},
         headers=alice_headers,
     )
     assert upload_response.status_code == 201
@@ -244,6 +244,28 @@ def test_delete_user_transfers_files_to_initial_admin(tmp_path: Path) -> None:
     bob_files_response = client.get("/files", headers=auth_headers(client, "bob", "bob123"))
     assert bob_files_response.status_code == 200
     assert any(item["id"] == file_id for item in bob_files_response.json())
+
+
+def test_deleted_user_ids_are_reused_in_order(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    user2 = create_user(client, "user2", "user222")
+    user3 = create_user(client, "user3", "user333")
+    user4 = create_user(client, "user4", "user444")
+    user5 = create_user(client, "user5", "user555")
+
+    assert [user2["id"], user3["id"], user4["id"], user5["id"]] == [2, 3, 4, 5]
+
+    admin_headers = auth_headers(client)
+    assert client.delete(f"/auth/users/{user2['id']}", headers=admin_headers).status_code == 204
+    assert client.delete(f"/auth/users/{user3['id']}", headers=admin_headers).status_code == 204
+
+    reused2 = create_user(client, "reused2", "reused222")
+    reused3 = create_user(client, "reused3", "reused333")
+    next_user = create_user(client, "next_user", "next123")
+
+    assert reused2["id"] == 2
+    assert reused3["id"] == 3
+    assert next_user["id"] == 6
 
 
 def test_upload_list_search_download_delete_flow(tmp_path: Path) -> None:
@@ -285,6 +307,50 @@ def test_upload_list_search_download_delete_flow(tmp_path: Path) -> None:
     assert client.get(f"/files/{uploaded['id']}/download", headers=headers).status_code == 404
 
 
+def test_search_files_by_owner_id_includes_private_metadata(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    alice = create_user(client, "owner_alice", "alice123")
+    create_user(client, "viewer_bob", "bob123")
+    alice_headers = auth_headers(client, "owner_alice", "alice123")
+    bob_headers = auth_headers(client, "viewer_bob", "bob123")
+
+    shared_response = client.post(
+        "/files/upload",
+        files={"file": ("alice-shared.txt", b"shared", "text/plain")},
+        data={"visibility": "shared"},
+        headers=alice_headers,
+    )
+    private_response = client.post(
+        "/files/upload",
+        files={"file": ("alice-private.txt", b"private", "text/plain")},
+        data={"visibility": "private", "access_password": "Abc123"},
+        headers=alice_headers,
+    )
+    assert shared_response.status_code == 201
+    assert private_response.status_code == 201
+
+    admin_response = client.get(f"/files/search/owner?owner_id={alice['id']}", headers=auth_headers(client))
+    assert admin_response.status_code == 200
+    assert {item["original_name"] for item in admin_response.json()} == {
+        "alice-shared.txt",
+        "alice-private.txt",
+    }
+
+    bob_response = client.get(f"/files/search/owner?owner_id={alice['id']}", headers=bob_headers)
+    assert bob_response.status_code == 200
+    assert {item["original_name"] for item in bob_response.json()} == {
+        "alice-shared.txt",
+        "alice-private.txt",
+    }
+
+    alice_response = client.get(f"/files/search/owner?owner_id={alice['id']}", headers=alice_headers)
+    assert alice_response.status_code == 200
+    assert {item["original_name"] for item in alice_response.json()} == {
+        "alice-shared.txt",
+        "alice-private.txt",
+    }
+
+
 def test_file_apis_require_login(tmp_path: Path) -> None:
     client = make_client(tmp_path)
 
@@ -294,7 +360,7 @@ def test_file_apis_require_login(tmp_path: Path) -> None:
     assert response.json()["error"]["code"] == "NOT_AUTHENTICATED"
 
 
-def test_private_file_is_hidden_from_other_users(tmp_path: Path) -> None:
+def test_private_file_is_visible_but_requires_password(tmp_path: Path) -> None:
     client = make_client(tmp_path)
     create_user(client, "alice", "alice123")
     create_user(client, "bob", "bob123")
@@ -304,18 +370,85 @@ def test_private_file_is_hidden_from_other_users(tmp_path: Path) -> None:
     upload_response = client.post(
         "/files/upload",
         files={"file": ("secret.txt", b"private", "text/plain")},
-        data={"visibility": "private"},
+        data={"visibility": "private", "access_password": "Aa1234"},
         headers=alice_headers,
     )
     assert upload_response.status_code == 201
     file_id = upload_response.json()["id"]
 
-    assert client.get("/files", headers=bob_headers).json() == []
-    assert client.get(f"/files/{file_id}/download", headers=bob_headers).status_code == 404
-    assert client.delete(f"/files/{file_id}", headers=bob_headers).status_code == 404
+    bob_files = client.get("/files", headers=bob_headers).json()
+    assert [item["id"] for item in bob_files] == [file_id]
+
+    no_password_response = client.get(f"/files/{file_id}/download", headers=bob_headers)
+    assert no_password_response.status_code == 403
+    assert no_password_response.json()["error"]["code"] == "PRIVATE_PASSWORD_REQUIRED"
+
+    wrong_password_response = client.get(
+        f"/files/{file_id}/download?access_password=bad123",
+        headers=bob_headers,
+    )
+    assert wrong_password_response.status_code == 403
+    assert wrong_password_response.json()["error"]["code"] == "INVALID_PRIVATE_PASSWORD"
+
+    assert client.get(
+        f"/files/{file_id}/download?access_password=Aa1234",
+        headers=bob_headers,
+    ).status_code == 200
+    assert client.delete(f"/files/{file_id}", headers=bob_headers).status_code == 403
+
+    assert client.get(f"/files/{file_id}/download", headers=auth_headers(client)).status_code == 200
 
     alice_delete = client.delete(f"/files/{file_id}", headers=alice_headers)
     assert alice_delete.status_code == 204
+
+
+def test_private_upload_requires_six_alnum_password(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    headers = auth_headers(client)
+
+    missing_password_response = client.post(
+        "/files/upload",
+        files={"file": ("secret.txt", b"private", "text/plain")},
+        data={"visibility": "private"},
+        headers=headers,
+    )
+    assert missing_password_response.status_code == 400
+    assert missing_password_response.json()["error"]["code"] == "INVALID_PRIVATE_PASSWORD"
+
+    invalid_password_response = client.post(
+        "/files/upload",
+        files={"file": ("secret.txt", b"private", "text/plain")},
+        data={"visibility": "private", "access_password": "abc-12"},
+        headers=headers,
+    )
+    assert invalid_password_response.status_code == 400
+    assert invalid_password_response.json()["error"]["code"] == "INVALID_PRIVATE_PASSWORD"
+
+
+def test_non_initial_admin_needs_password_for_private_download_but_can_delete(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    create_user(client, "manager", "manager123", role="admin")
+    create_user(client, "alice_private", "alice123")
+    manager_headers = auth_headers(client, "manager", "manager123")
+    alice_headers = auth_headers(client, "alice_private", "alice123")
+
+    upload_response = client.post(
+        "/files/upload",
+        files={"file": ("managed-private.txt", b"private", "text/plain")},
+        data={"visibility": "private", "access_password": "Qq1234"},
+        headers=alice_headers,
+    )
+    file_id = upload_response.json()["id"]
+
+    no_password_response = client.get(f"/files/{file_id}/download", headers=manager_headers)
+    assert no_password_response.status_code == 403
+    assert no_password_response.json()["error"]["code"] == "PRIVATE_PASSWORD_REQUIRED"
+
+    assert client.get(
+        f"/files/{file_id}/download?access_password=Qq1234",
+        headers=manager_headers,
+    ).status_code == 200
+    assert client.delete(f"/files/{file_id}", headers=manager_headers).status_code == 204
 
 
 def test_shared_file_can_be_downloaded_but_not_deleted_by_other_user(tmp_path: Path) -> None:

@@ -18,6 +18,7 @@ class TransferThread(QThread):
         source: str,
         target: str | None = None,
         visibility: str = "shared",
+        access_password: str | None = None,
     ) -> None:
         super().__init__()
         self.api_client = api_client
@@ -25,6 +26,7 @@ class TransferThread(QThread):
         self.source = source
         self.target = target
         self.visibility = visibility
+        self.access_password = access_password
 
     def run(self) -> None:
         try:
@@ -32,6 +34,7 @@ class TransferThread(QThread):
                 self.api_client.upload_file(
                     self.source,
                     self.visibility,
+                    access_password=self.access_password,
                     progress=self._emit_progress,
                 )
                 self.succeeded.emit("上传完成")
@@ -41,6 +44,7 @@ class TransferThread(QThread):
                 self.api_client.download_file(
                     self.source,
                     Path(self.target),
+                    access_password=self.access_password,
                     progress=self._emit_progress,
                 )
                 self.succeeded.emit("下载完成")

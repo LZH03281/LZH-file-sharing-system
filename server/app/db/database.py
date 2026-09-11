@@ -1,6 +1,7 @@
 from collections.abc import Generator
 
 from sqlalchemy import create_engine
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import Settings
@@ -25,6 +26,12 @@ def init_db(settings: Settings, session_factory: sessionmaker[Session]) -> None:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     bind = session_factory.kw["bind"]
     Base.metadata.create_all(bind=bind)
+    inspector = inspect(bind)
+    if "files" in inspector.get_table_names():
+        file_columns = {column["name"] for column in inspector.get_columns("files")}
+        if "access_password_hash" not in file_columns:
+            with bind.begin() as connection:
+                connection.execute(text("ALTER TABLE files ADD COLUMN access_password_hash VARCHAR(255)"))
 
 
 def session_scope(session_factory: sessionmaker[Session]) -> Generator[Session]:
