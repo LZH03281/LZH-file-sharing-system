@@ -38,6 +38,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.api_client = api_client
         self.files: list[dict] = []
+        self.current_page = 1
+        self.page_size = 20
         self.worker: TransferThread | None = None
         self.setWindowTitle("共享文件服务器")
         self.resize(1120, 720)
@@ -55,6 +57,10 @@ class MainWindow(QMainWindow):
         self.account_button.setObjectName("secondaryButton")
         self.account_button.clicked.connect(self.open_account_dialog)
         self.account_button.hide()
+        self.export_logs_button = QPushButton("导出日志")
+        self.export_logs_button.setObjectName("secondaryButton")
+        self.export_logs_button.clicked.connect(self.export_logs)
+        self.export_logs_button.hide()
         self.logout_button = QPushButton("退出登录")
         self.logout_button.setObjectName("secondaryButton")
         self.logout_button.clicked.connect(self.logout_requested.emit)
@@ -72,6 +78,7 @@ class MainWindow(QMainWindow):
         header_layout.addStretch()
         header_layout.addWidget(self.user_button)
         header_layout.addWidget(self.account_button)
+        header_layout.addWidget(self.export_logs_button)
         header_layout.addWidget(self.logout_button)
         header_card.setLayout(header_layout)
 
@@ -118,6 +125,21 @@ class MainWindow(QMainWindow):
         table_title.setObjectName("sectionTitleLabel")
         table_layout.addWidget(table_title)
         table_layout.addWidget(self.table)
+        pagination_layout = QHBoxLayout()
+        pagination_layout.setSpacing(10)
+        self.prev_page_button = QPushButton("上一页")
+        self.prev_page_button.setObjectName("secondaryButton")
+        self.prev_page_button.clicked.connect(self.previous_page)
+        self.page_label = QLabel("第 1 / 1 页")
+        self.page_label.setObjectName("statusLabel")
+        self.next_page_button = QPushButton("下一页")
+        self.next_page_button.setObjectName("secondaryButton")
+        self.next_page_button.clicked.connect(self.next_page)
+        pagination_layout.addStretch()
+        pagination_layout.addWidget(self.prev_page_button)
+        pagination_layout.addWidget(self.page_label)
+        pagination_layout.addWidget(self.next_page_button)
+        table_layout.addLayout(pagination_layout)
         table_card.setLayout(table_layout)
 
         self.visibility_box = QComboBox()
@@ -164,6 +186,7 @@ class MainWindow(QMainWindow):
         except ApiError as exc:
             self.handle_api_error(exc)
             return
+        self.current_page = 1
         self.render_files()
 
     def update_user_summary(self) -> None:
@@ -175,6 +198,7 @@ class MainWindow(QMainWindow):
         self.user_button.setText(f"{username} · ID {user_id}")
         self.subtitle_label.setText(f"当前账号：{username}（{role_text}）")
         self.account_button.setVisible(role == "admin")
+        self.export_logs_button.setVisible(role == "admin")
 
     def open_profile_dialog(self) -> None:
         dialog = ProfileDialog(self.api_client, self)
@@ -183,6 +207,20 @@ class MainWindow(QMainWindow):
     def open_account_dialog(self) -> None:
         dialog = AccountDialog(self.api_client, self)
         dialog.exec()
+
+    def export_logs(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(self, "导出操作日志", "operation_logs.csv", "CSV 文件 (*.csv)")
+        if not path:
+            return
+        try:
+            self.api_client.export_logs_csv(path)
+        except ApiError as exc:
+            self.handle_api_error(exc)
+            return
+        except OSError as exc:
+            QMessageBox.warning(self, "导出失败", f"无法保存日志文件：{exc}")
+            return
+        QMessageBox.information(self, "导出完成", "操作日志已导出")
 
     def update_search_placeholder(self) -> None:
         if self.search_type_box.currentData() == "owner_id":
@@ -206,6 +244,7 @@ class MainWindow(QMainWindow):
         except ApiError as exc:
             self.handle_api_error(exc)
             return
+        self.current_page = 1
         self.render_files()
 
     def upload_file(self) -> None:
@@ -293,10 +332,12 @@ class MainWindow(QMainWindow):
 
     def selected_file(self) -> dict | None:
         row = self.table.currentRow()
-        if row < 0 or row >= len(self.files):
+        page_start = (self.current_page - 1) * self.page_size
+        file_index = page_start + row
+        if row < 0 or file_index >= len(self.files):
             QMessageBox.information(self, "请选择文件", "请先在表格中选择一个文件")
             return None
-        return self.files[row]
+        return self.files[file_index]
 
     def current_user_is_initial_admin(self) -> bool:
         user = self.api_client.current_user or {}
@@ -318,8 +359,13 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "密码格式错误", "密码必须是 6 位，只能包含数字、大小写字母")
 
     def render_files(self) -> None:
-        self.table.setRowCount(len(self.files))
-        for row, item in enumerate(self.files):
+        total_pages = self.total_pages()
+        self.current_page = max(1, min(self.current_page, total_pages))
+        start = (self.current_page - 1) * self.page_size
+        page_files = self.files[start : start + self.page_size]
+
+        self.table.setRowCount(len(page_files))
+        for row, item in enumerate(page_files):
             values = [
                 item["original_name"],
                 self.format_size(item["size"]),
@@ -335,6 +381,22 @@ class MainWindow(QMainWindow):
                     table_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table.setItem(row, column, table_item)
         self.table.resizeColumnsToContents()
+        self.page_label.setText(f"第 {self.current_page} / {total_pages} 页，共 {len(self.files)} 个文件")
+        self.prev_page_button.setEnabled(self.current_page > 1)
+        self.next_page_button.setEnabled(self.current_page < total_pages)
+
+    def total_pages(self) -> int:
+        return max(1, (len(self.files) + self.page_size - 1) // self.page_size)
+
+    def previous_page(self) -> None:
+        if self.current_page > 1:
+            self.current_page -= 1
+            self.render_files()
+
+    def next_page(self) -> None:
+        if self.current_page < self.total_pages():
+            self.current_page += 1
+            self.render_files()
 
     def set_actions_enabled(self, enabled: bool) -> None:
         self.upload_button.setEnabled(enabled)
@@ -343,6 +405,13 @@ class MainWindow(QMainWindow):
         self.refresh_button.setEnabled(enabled)
         self.search_button.setEnabled(enabled)
         self.search_type_box.setEnabled(enabled)
+        self.export_logs_button.setEnabled(enabled)
+        if enabled:
+            self.prev_page_button.setEnabled(self.current_page > 1)
+            self.next_page_button.setEnabled(self.current_page < self.total_pages())
+        else:
+            self.prev_page_button.setEnabled(False)
+            self.next_page_button.setEnabled(False)
 
     def handle_api_error(self, exc: ApiError) -> None:
         if exc.status_code == 401:

@@ -30,6 +30,6 @@ class AuditService:
         self.db.commit()
 
     def list_recent(self, limit: int = 100) -> list[OperationLogModel]:
-        safe_limit = max(1, min(limit, 500))
+        safe_limit = max(1, min(limit, 5000))
         statement = select(OperationLogModel).order_by(OperationLogModel.created_at.desc()).limit(safe_limit)
         return list(self.db.scalars(statement))

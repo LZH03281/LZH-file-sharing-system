@@ -533,6 +533,14 @@ def test_admin_can_view_operation_logs(tmp_path: Path) -> None:
     assert "download" in actions
     assert "delete" in actions
 
+    export_response = client.get("/logs/export", headers=headers)
+    assert export_response.status_code == 200
+    assert "text/csv" in export_response.headers["content-type"]
+    assert "operation_logs.csv" in export_response.headers["content-disposition"]
+    assert "upload" in export_response.text
+    assert "download" in export_response.text
+    assert "delete" in export_response.text
+
 
 def test_only_admin_can_view_logs(tmp_path: Path) -> None:
     client = make_client(tmp_path)
@@ -543,3 +551,7 @@ def test_only_admin_can_view_logs(tmp_path: Path) -> None:
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "PERMISSION_DENIED"
+
+    export_response = client.get("/logs/export", headers=alice_headers)
+    assert export_response.status_code == 403
+    assert export_response.json()["error"]["code"] == "PERMISSION_DENIED"

@@ -129,6 +129,10 @@ class ApiClient:
     def delete_file(self, file_id: str) -> None:
         self._request("DELETE", f"/files/{file_id}")
 
+    def export_logs_csv(self, target_path: str | Path, limit: int = 5000) -> None:
+        response = self._raw_request("GET", "/logs/export", params={"limit": limit})
+        Path(target_path).write_bytes(response.content)
+
     def _request(self, method: str, path: str, auth: bool = True, **kwargs: Any) -> Any:
         response = self._raw_request(method, path, auth=auth, **kwargs)
         if response.status_code == 204:
