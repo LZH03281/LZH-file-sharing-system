@@ -26,11 +26,17 @@ def auth_headers(client: TestClient, username: str = "admin", password: str = "a
     return {"Authorization": f"Bearer {token}"}
 
 
-def create_user(client: TestClient, username: str, password: str, role: str = "user") -> dict:
+def create_user(
+    client: TestClient,
+    username: str,
+    password: str,
+    role: str = "user",
+    headers: dict[str, str] | None = None,
+) -> dict:
     response = client.post(
         "/auth/users",
         json={"username": username, "password": password, "role": role},
-        headers=auth_headers(client),
+        headers=headers or auth_headers(client),
     )
     assert response.status_code == 201
     return response.json()
@@ -72,6 +78,172 @@ def test_public_register_creates_normal_user(tmp_path: Path) -> None:
     me_response = client.get("/auth/me", headers=headers)
     assert me_response.status_code == 200
     assert me_response.json()["role"] == "user"
+
+
+def test_admin_can_manage_user_status(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    admin_headers = auth_headers(client)
+    user = create_user(client, "disabled_user", "disabled123")
+
+    list_response = client.get("/auth/users", headers=admin_headers)
+    assert list_response.status_code == 200
+    assert any(item["username"] == "disabled_user" for item in list_response.json())
+
+    disable_response = client.patch(
+        f"/auth/users/{user['id']}/enabled",
+        json={"enabled": False},
+        headers=admin_headers,
+    )
+    assert disable_response.status_code == 200
+    assert disable_response.json()["enabled"] is False
+
+    login_response = client.post(
+        "/auth/login",
+        json={"username": "disabled_user", "password": "disabled123"},
+    )
+    assert login_response.status_code == 401
+
+    enable_response = client.patch(
+        f"/auth/users/{user['id']}/enabled",
+        json={"enabled": True},
+        headers=admin_headers,
+    )
+    assert enable_response.status_code == 200
+    assert enable_response.json()["enabled"] is True
+
+
+def test_admin_cannot_disable_self(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    admin_headers = auth_headers(client)
+    me_response = client.get("/auth/me", headers=admin_headers)
+    admin_id = me_response.json()["id"]
+
+    response = client.patch(
+        f"/auth/users/{admin_id}/enabled",
+        json={"enabled": False},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "CANNOT_DISABLE_SELF"
+
+
+def test_initial_admin_controls_admin_creation_limit(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    create_user(client, "admin2", "admin222", role="admin")
+    create_user(client, "admin3", "admin333", role="admin")
+
+    over_limit_response = client.post(
+        "/auth/users",
+        json={"username": "admin4", "password": "admin444", "role": "admin"},
+        headers=auth_headers(client),
+    )
+    assert over_limit_response.status_code == 409
+    assert over_limit_response.json()["error"]["code"] == "ADMIN_LIMIT_REACHED"
+
+    admin2_headers = auth_headers(client, "admin2", "admin222")
+    non_initial_response = client.post(
+        "/auth/users",
+        json={"username": "admin5", "password": "admin555", "role": "admin"},
+        headers=admin2_headers,
+    )
+    assert non_initial_response.status_code == 403
+    assert non_initial_response.json()["error"]["code"] == "PERMISSION_DENIED"
+
+
+def test_non_initial_admin_can_manage_only_normal_users(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    admin2 = create_user(client, "manager", "manager123", role="admin")
+    admin3 = create_user(client, "audit_admin", "audit123", role="admin")
+    alice = create_user(client, "alice", "alice123")
+    manager_headers = auth_headers(client, "manager", "manager123")
+
+    disable_user_response = client.patch(
+        f"/auth/users/{alice['id']}/enabled",
+        json={"enabled": False},
+        headers=manager_headers,
+    )
+    assert disable_user_response.status_code == 200
+    assert disable_user_response.json()["enabled"] is False
+
+    enable_user_response = client.patch(
+        f"/auth/users/{alice['id']}/enabled",
+        json={"enabled": True},
+        headers=manager_headers,
+    )
+    assert enable_user_response.status_code == 200
+    assert enable_user_response.json()["enabled"] is True
+
+    disable_admin_response = client.patch(
+        f"/auth/users/{admin2['id']}/enabled",
+        json={"enabled": False},
+        headers=manager_headers,
+    )
+    assert disable_admin_response.status_code == 400
+    assert disable_admin_response.json()["error"]["code"] == "CANNOT_DISABLE_SELF"
+
+    disable_other_admin_response = client.patch(
+        f"/auth/users/{admin3['id']}/enabled",
+        json={"enabled": False},
+        headers=manager_headers,
+    )
+    assert disable_other_admin_response.status_code == 403
+    assert disable_other_admin_response.json()["error"]["code"] == "PERMISSION_DENIED"
+
+    initial_admin_id = client.get("/auth/me", headers=auth_headers(client)).json()["id"]
+    delete_initial_admin_response = client.delete(
+        f"/auth/users/{initial_admin_id}",
+        headers=manager_headers,
+    )
+    assert delete_initial_admin_response.status_code == 400
+    assert delete_initial_admin_response.json()["error"]["code"] == "CANNOT_DELETE_INITIAL_ADMIN"
+
+    delete_user_response = client.delete(
+        f"/auth/users/{alice['id']}",
+        headers=manager_headers,
+    )
+    assert delete_user_response.status_code == 204
+    assert client.post("/auth/login", json={"username": "alice", "password": "alice123"}).status_code == 401
+
+
+def test_initial_admin_can_delete_non_initial_admin(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    admin2 = create_user(client, "admin2", "admin222", role="admin")
+
+    response = client.delete(f"/auth/users/{admin2['id']}", headers=auth_headers(client))
+
+    assert response.status_code == 204
+    assert client.post("/auth/login", json={"username": "admin2", "password": "admin222"}).status_code == 401
+
+
+def test_delete_user_transfers_files_to_initial_admin(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    alice = create_user(client, "file_owner", "owner123")
+    bob = create_user(client, "bob", "bob123")
+    alice_headers = auth_headers(client, "file_owner", "owner123")
+    upload_response = client.post(
+        "/files/upload",
+        files={"file": ("owned.txt", b"owned", "text/plain")},
+        data={"visibility": "private"},
+        headers=alice_headers,
+    )
+    assert upload_response.status_code == 201
+    file_id = upload_response.json()["id"]
+
+    response = client.delete(f"/auth/users/{alice['id']}", headers=auth_headers(client))
+
+    assert response.status_code == 204
+    assert client.post("/auth/login", json={"username": "file_owner", "password": "owner123"}).status_code == 401
+
+    admin_files_response = client.get("/files", headers=auth_headers(client))
+    assert admin_files_response.status_code == 200
+    transferred = next(item for item in admin_files_response.json() if item["id"] == file_id)
+    assert transferred["owner_name"] == "admin"
+    assert transferred["visibility"] == "shared"
+
+    bob_files_response = client.get("/files", headers=auth_headers(client, "bob", "bob123"))
+    assert bob_files_response.status_code == 200
+    assert any(item["id"] == file_id for item in bob_files_response.json())
 
 
 def test_upload_list_search_download_delete_flow(tmp_path: Path) -> None:

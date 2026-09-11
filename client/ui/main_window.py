@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from api_client.client import ApiClient, ApiError
+from ui.account_window import AccountDialog
 from ui.style import APP_STYLE
 from workers.transfer_worker import TransferThread
 
@@ -48,6 +49,10 @@ class MainWindow(QMainWindow):
         self.refresh_button = QPushButton("刷新")
         self.refresh_button.setObjectName("secondaryButton")
         self.refresh_button.clicked.connect(self.refresh_files)
+        self.account_button = QPushButton("账号管理")
+        self.account_button.setObjectName("secondaryButton")
+        self.account_button.clicked.connect(self.open_account_dialog)
+        self.account_button.hide()
         self.logout_button = QPushButton("退出登录")
         self.logout_button.setObjectName("secondaryButton")
         self.logout_button.clicked.connect(self.logout_requested.emit)
@@ -57,6 +62,7 @@ class MainWindow(QMainWindow):
         top_layout.addWidget(self.search_input)
         top_layout.addWidget(self.search_button)
         top_layout.addWidget(self.refresh_button)
+        top_layout.addWidget(self.account_button)
         top_layout.addWidget(self.logout_button)
 
         header_layout = QHBoxLayout()
@@ -131,6 +137,11 @@ class MainWindow(QMainWindow):
         role = user.get("role", "user")
         role_text = "管理员" if role == "admin" else "普通用户"
         self.subtitle_label.setText(f"当前用户：{username}（{role_text}）")
+        self.account_button.setVisible(role == "admin")
+
+    def open_account_dialog(self) -> None:
+        dialog = AccountDialog(self.api_client, self)
+        dialog.exec()
 
     def search_files(self) -> None:
         query = self.search_input.text().strip()

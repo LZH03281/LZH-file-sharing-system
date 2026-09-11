@@ -45,6 +45,26 @@ class ApiClient:
             auth=False,
         )
 
+    def list_users(self) -> list[dict[str, Any]]:
+        return self._request("GET", "/auth/users")
+
+    def create_user(self, username: str, password: str, role: str = "user") -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/auth/users",
+            json={"username": username, "password": password, "role": role},
+        )
+
+    def set_user_enabled(self, user_id: int, enabled: bool) -> dict[str, Any]:
+        return self._request(
+            "PATCH",
+            f"/auth/users/{user_id}/enabled",
+            json={"enabled": enabled},
+        )
+
+    def delete_user(self, user_id: int) -> None:
+        self._request("DELETE", f"/auth/users/{user_id}")
+
     def logout(self) -> None:
         self.access_token = None
         self.current_user = None

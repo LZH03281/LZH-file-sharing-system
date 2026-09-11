@@ -1,4 +1,4 @@
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.errors import AppError
@@ -15,6 +15,31 @@ class UserRepository:
         statement = select(UserModel).where(UserModel.username == username)
         return self.db.scalar(statement)
 
+    def get_by_id(self, user_id: int) -> UserModel | None:
+        return self.db.get(UserModel, user_id)
+
+    def list_all(self) -> list[UserModel]:
+        statement = select(UserModel).order_by(UserModel.id.asc())
+        return list(self.db.scalars(statement))
+
+    def count_admins(self) -> int:
+        statement = select(func.count()).select_from(UserModel).where(UserModel.role == "admin")
+        return self.db.scalar(statement) or 0
+
+    def count_files_for_user(self, user_id: int) -> int:
+        statement = select(func.count()).select_from(FileModel).where(FileModel.owner_id == user_id)
+        return self.db.scalar(statement) or 0
+
+    def transfer_files_to_user(self, from_user_id: int, to_user_id: int, visibility: str = "shared") -> int:
+        statement = (
+            update(FileModel)
+            .where(FileModel.owner_id == from_user_id)
+            .values(owner_id=to_user_id, visibility=visibility)
+        )
+        result = self.db.execute(statement)
+        self.db.commit()
+        return result.rowcount or 0
+
     def create(self, username: str, password: str, role: str = "user") -> UserModel:
         if self.get_by_username(username) is not None:
             raise AppError("USERNAME_EXISTS", "用户名已存在", 409)
@@ -23,6 +48,19 @@ class UserRepository:
         self.db.commit()
         self.db.refresh(user)
         return user
+
+    def set_enabled(self, user_id: int, enabled: bool) -> UserModel:
+        user = self.get_by_id(user_id)
+        if user is None:
+            raise AppError("USER_NOT_FOUND", "用户不存在", 404)
+        user.enabled = enabled
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def delete(self, user: UserModel) -> None:
+        self.db.delete(user)
+        self.db.commit()
 
 
 class SqlAlchemyFileRepository:
