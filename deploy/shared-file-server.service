@@ -1,0 +1,31 @@
+[Unit]
+Description=Shared File Server with local antivirus scanning
+After=network.target clamav-freshclam.service
+
+[Service]
+User=cfs
+Group=cfs
+WorkingDirectory=/opt/shared-file-server/server
+EnvironmentFile=/etc/shared-file-server/server.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/shared-file-server/server/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+Restart=on-failure
+RestartSec=5
+StateDirectory=shared-file-server
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/shared-file-server
+
+[Install]
+WantedBy=multi-user.target

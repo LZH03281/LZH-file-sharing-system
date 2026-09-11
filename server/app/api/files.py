@@ -72,7 +72,11 @@ async def upload_file(
         if access_password is None or not PRIVATE_PASSWORD_PATTERN.fullmatch(access_password):
             raise AppError("INVALID_PRIVATE_PASSWORD", "private 文件密码必须是 6 位数字或大小写字母", 400)
         access_password_hash = hash_password(access_password)
-    stored = await storage.save_upload(file)
+    try:
+        stored = await storage.save_upload(file)
+    except AppError as exc:
+        AuditService(repository.db).record("upload", "failed", user=current_user, detail=exc.code)
+        raise
     try:
         record = repository.add(stored, current_user, visibility, access_password_hash)
     except Exception:
@@ -105,6 +109,12 @@ def download_file(
         if not verify_password(access_password, record.access_password_hash):
             raise AppError("INVALID_PRIVATE_PASSWORD", "文件密码错误", 403)
     path = storage.resolve_existing(record.stored_name)
+    try:
+        storage.security.check(path, record.original_name)
+    except AppError as exc:
+        AuditService(repository.db).record("download", "failed", user=current_user,
+                                           file_id=record.id, detail=exc.code)
+        raise
     AuditService(repository.db).record(
         "download",
         "success",
@@ -114,7 +124,8 @@ def download_file(
     )
     return FileResponse(
         path=path,
-        media_type=record.content_type,
+        media_type="application/octet-stream",
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"},
         filename=record.original_name,
     )
 

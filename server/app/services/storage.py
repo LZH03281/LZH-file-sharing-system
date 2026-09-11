@@ -5,6 +5,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import UploadFile, status
+from starlette.concurrency import run_in_threadpool
+from app.services.file_security import FileSecurityService
 
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -23,6 +25,7 @@ class StoredFile:
 class StorageService:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self.security = FileSecurityService(settings)
         self.storage_dir = settings.storage_dir.resolve()
         self.tmp_dir = (self.storage_dir / ".tmp").resolve()
         self.storage_dir.mkdir(parents=True, exist_ok=True)
@@ -53,6 +56,7 @@ class StorageService:
                     digest.update(chunk)
                     target.write(chunk)
 
+            await run_in_threadpool(self.security.check, tmp_path, original_name)
             os.replace(tmp_path, final_path)
         except Exception:
             tmp_path.unlink(missing_ok=True)

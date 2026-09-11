@@ -1,5 +1,7 @@
 # Ubuntu Server 部署说明
 
+> 文件安全功能默认启用。请优先按 [文件安全与部署](file-security.md) 安装 ClamAV、更新病毒库，并使用 `deploy/` 中的低权限 systemd 配置。下文基础部署步骤不包含完整安全配置；未安装扫描器时上传和下载会被拒绝。
+
 本文档用于小组成员在统一虚拟机环境中部署服务端。推荐环境：
 
 - VMware Workstation Pro

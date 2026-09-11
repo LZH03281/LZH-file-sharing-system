@@ -16,7 +16,7 @@ class ApiError(Exception):
 
 
 class ApiClient:
-    def __init__(self, base_url: str = "http://127.0.0.1:8000", timeout: int = 20) -> None:
+    def __init__(self, base_url: str = "http://127.0.0.1:8000", timeout: int = 150) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.access_token: str | None = None

@@ -10,6 +10,7 @@ def make_client(tmp_path: Path, max_upload_size: int = 1024 * 1024) -> TestClien
     app = create_app(
         Settings(
             data_dir=tmp_path,
+            antivirus_enabled=False,
             max_upload_size=max_upload_size,
             secret_key="test-secret-for-shared-file-server",
             default_admin_username="admin",
