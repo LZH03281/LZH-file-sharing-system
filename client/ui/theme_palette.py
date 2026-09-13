@@ -1,7 +1,8 @@
-from PyQt6.QtCore import QRectF, Qt
+from PyQt6.QtCore import QRectF, QSize, Qt
 from PyQt6.QtGui import QActionGroup, QColor, QIcon, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QApplication, QMenu, QPushButton
 
+from ui.branding import load_icon
 from ui.style import (
     THEME_ORDER,
     THEMES,
@@ -28,6 +29,8 @@ class ThemePaletteButton(QPushButton):
         super().__init__(parent)
         self.show_theme_name = show_theme_name
         self.setObjectName("paletteButton")
+        self.setIcon(load_icon("palette.png"))
+        self.setIconSize(QSize(22, 22))
         self.theme_menu = QMenu(self)
         self.theme_actions = {}
         palette_group = QActionGroup(self.theme_menu)
@@ -49,7 +52,7 @@ class ThemePaletteButton(QPushButton):
 
     def sync_state(self) -> None:
         suffix = f" · {get_theme_label()}" if self.show_theme_name else ""
-        self.setText(f"🎨 调色盘{suffix}")
+        self.setText(f"调色盘{suffix}")
         current_theme = get_current_theme_key()
         for theme_key, action in self.theme_actions.items():
             action.setChecked(theme_key == current_theme)

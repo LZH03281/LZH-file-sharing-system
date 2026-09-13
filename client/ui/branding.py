@@ -1,11 +1,16 @@
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtWidgets import QLabel
 
 
 LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "branding" / "logo.png"
+ICON_DIR = Path(__file__).resolve().parents[1] / "assets" / "icons"
+
+
+def load_icon(filename: str) -> QIcon:
+    return QIcon(str(ICON_DIR / filename))
 
 
 def create_logo_label(max_width: int, max_height: int, fallback_text: str) -> QLabel:

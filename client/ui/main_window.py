@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from api_client.client import ApiClient, ApiError
-from ui.branding import create_logo_label
+from ui.branding import create_logo_label, load_icon
 from ui.chat_window import ChatDialog
 from ui.profile_window import ProfileDialog
 from ui.style import get_app_style
@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
         self.all_files: list[dict] = []
         self.files: list[dict] = []
         self.file_pages: dict[str, dict] = {}
-        self.current_pages: dict[str, int] = {"center": 1, "mine": 1}
+        self.current_pages: dict[str, int] = {"center": 1, "shared": 1, "mine": 1}
         self.active_file_scope = "center"
         self.page_size = 20
         self.worker: TransferThread | None = None
@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
         self.users: list[dict] = []
         self.header_user_buttons: list[QPushButton] = []
 
-        self.setWindowTitle("共享文件服务器")
+        self.setWindowTitle("千共*万享")
         self.setMinimumSize(1200, 720)
         self.resize(1280, 760)
         self.setStyleSheet(get_app_style())
@@ -68,11 +68,13 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.home_page = self.create_home_page()
         self.file_center_page = self.create_file_page("center", "文件中心", "管理、上传和下载服务器中的文件")
+        self.shared_files_page = self.create_file_page("shared", "共享文件", "查看服务器中的所有共享文件")
         self.my_files_page = self.create_file_page("mine", "我的文件", "查看和管理由当前账号上传的文件")
         self.logs_page = self.create_logs_page()
         self.account_page = self.create_account_page()
         self.stack.addWidget(self.home_page)
         self.stack.addWidget(self.file_center_page)
+        self.stack.addWidget(self.shared_files_page)
         self.stack.addWidget(self.my_files_page)
         self.stack.addWidget(self.logs_page)
         self.stack.addWidget(self.account_page)
@@ -90,22 +92,25 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(16, 18, 16, 18)
         layout.setSpacing(8)
 
-        logo = create_logo_label(176, 58, "共享文件服务器\nFileShare")
+        logo = create_logo_label(176, 58, "千共*万享")
         logo.setObjectName("sidebarLogo")
         layout.addWidget(logo)
         layout.addSpacing(12)
 
         nav_items = [
-            ("home", "🏠 首页"),
-            ("center", "📁 文件中心"),
-            ("mine", "👤 我的文件"),
-            ("chat", "💬 实时聊天"),
-            ("logs", "📋 操作日志"),
-            ("account", "⚙ 账号管理"),
+            ("home", "首页", "home.png"),
+            ("center", "文件中心", "file_center.png"),
+            ("shared", "共享文件", "shared_files.png"),
+            ("mine", "我的文件", "my_files.png"),
+            ("chat", "实时聊天", "chat.png"),
+            ("logs", "操作日志", "logs.png"),
+            ("account", "账号管理", "account.png"),
         ]
-        for key, text in nav_items:
+        for key, text, icon_name in nav_items:
             button = QPushButton(text)
             button.setObjectName("navButton")
+            button.setIcon(load_icon(icon_name))
+            button.setIconSize(QSize(26, 26))
             button.setCheckable(True)
             if key == "chat":
                 button.clicked.connect(self.open_chat_dialog)
@@ -439,7 +444,7 @@ class MainWindow(QMainWindow):
         return table
 
     def show_page(self, page: str) -> None:
-        indexes = {"home": 0, "center": 1, "mine": 2, "logs": 3, "account": 4}
+        indexes = {"home": 0, "center": 1, "shared": 2, "mine": 3, "logs": 4, "account": 5}
         if page in {"account", "logs"} and not self.current_user_is_admin():
             message = "账号管理需要管理员权限" if page == "account" else "操作日志仅管理员可访问"
             QMessageBox.warning(self, "权限不足", message)
@@ -546,6 +551,8 @@ class MainWindow(QMainWindow):
         user = self.api_client.current_user or {}
         if scope == "mine":
             return [item for item in self.all_files if item.get("owner_id") == user.get("id") or item.get("owner_name") == user.get("username")]
+        if scope == "shared":
+            return [item for item in self.all_files if item.get("visibility") == "shared"]
         return list(self.all_files)
 
     def apply_file_filters(self, scope: str) -> None:

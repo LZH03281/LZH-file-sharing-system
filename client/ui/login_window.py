@@ -25,7 +25,7 @@ class LoginWindow(QWidget):
     def __init__(self, api_client: ApiClient) -> None:
         super().__init__()
         self.api_client = api_client
-        self.setWindowTitle("共享文件服务器 - 登录")
+        self.setWindowTitle("千共*万享 - 登录")
         self.resize(460, 320)
         self.setStyleSheet(get_app_style())
 
@@ -42,7 +42,7 @@ class LoginWindow(QWidget):
         self.register_button.clicked.connect(self.open_register_dialog)
         self.password_input.returnPressed.connect(self.login)
 
-        title_label = create_logo_label(220, 56, "共享文件服务器")
+        title_label = create_logo_label(220, 56, "千共*万享")
         title_label.setObjectName("titleLabel")
         subtitle_label = QLabel("登录后即可上传、下载和管理共享文件")
         subtitle_label.setObjectName("subtitleLabel")
