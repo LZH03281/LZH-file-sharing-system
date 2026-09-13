@@ -214,9 +214,10 @@ class MainWindow(QMainWindow):
 
     def create_stat_card(self, title: str, value_label: QLabel) -> QFrame:
         card = QFrame()
-        card.setObjectName("card")
+        card.setObjectName("statCard")
         layout = QVBoxLayout()
-        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(6)
         title_label = QLabel(title)
         title_label.setObjectName("mutedLabel")
         value_label.setObjectName("statValueLabel")
@@ -258,7 +259,7 @@ class MainWindow(QMainWindow):
         refresh_button.clicked.connect(self.refresh_files)
 
         search_card = QFrame()
-        search_card.setObjectName("card")
+        search_card.setObjectName("toolbarCard")
         search_layout = QHBoxLayout()
         search_layout.setContentsMargins(16, 14, 16, 14)
         search_layout.setSpacing(10)
@@ -310,7 +311,7 @@ class MainWindow(QMainWindow):
         progress_bar.setValue(0)
 
         action_card = QFrame()
-        action_card.setObjectName("card")
+        action_card.setObjectName("toolbarCard")
         action_layout = QHBoxLayout()
         action_layout.setContentsMargins(16, 14, 16, 14)
         action_layout.setSpacing(10)
@@ -372,7 +373,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.account_subtitle)
 
         form_card = QFrame()
-        form_card.setObjectName("card")
+        form_card.setObjectName("toolbarCard")
         form_layout = QHBoxLayout()
         form_layout.setContentsMargins(16, 14, 16, 14)
         self.username_input = QLineEdit()
@@ -397,7 +398,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.create_card_with_widget("账号列表", self.account_table), 1)
 
         action_card = QFrame()
-        action_card.setObjectName("card")
+        action_card.setObjectName("toolbarCard")
         action_layout = QHBoxLayout()
         action_layout.setContentsMargins(16, 14, 16, 14)
         self.account_refresh_button = QPushButton("刷新")

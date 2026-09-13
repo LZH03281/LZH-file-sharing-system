@@ -53,6 +53,7 @@ class ChatDialog(QDialog):
         header.setLayout(header_layout)
 
         self.user_list = QListWidget()
+        self.user_list.setObjectName("chatUserList")
         self.user_list.currentRowChanged.connect(self.select_user)
         self.refresh_users_button = QPushButton("刷新用户")
         self.refresh_users_button.setObjectName("secondaryButton")
