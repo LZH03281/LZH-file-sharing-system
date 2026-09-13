@@ -1,9 +1,9 @@
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.errors import AppError
 from app.core.security import hash_password
-from app.models.models import FileModel, UserModel
+from app.models.models import ChatMessageModel, FileModel, UserModel
 from app.services.storage import StoredFile
 
 
@@ -74,6 +74,14 @@ class UserRepository:
         return user
 
     def delete(self, user: UserModel) -> None:
+        self.db.execute(
+            delete(ChatMessageModel).where(
+                or_(
+                    ChatMessageModel.sender_id == user.id,
+                    ChatMessageModel.receiver_id == user.id,
+                )
+            )
+        )
         self.db.delete(user)
         self.db.commit()
 
@@ -141,6 +149,64 @@ class SqlAlchemyFileRepository:
         if user.role == "admin":
             return statement
         return statement
+
+
+class ChatRepository:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def list_chat_users(self, current_user: UserModel) -> list[UserModel]:
+        statement = (
+            select(UserModel)
+            .where(UserModel.id != current_user.id)
+            .where(UserModel.enabled.is_(True))
+            .order_by(UserModel.id.asc())
+        )
+        return list(self.db.scalars(statement))
+
+    def get_history(self, current_user: UserModel, peer_id: int, limit: int = 100) -> list[ChatMessageModel]:
+        statement = (
+            select(ChatMessageModel)
+            .where(
+                or_(
+                    and_(
+                        ChatMessageModel.sender_id == current_user.id,
+                        ChatMessageModel.receiver_id == peer_id,
+                    ),
+                    and_(
+                        ChatMessageModel.sender_id == peer_id,
+                        ChatMessageModel.receiver_id == current_user.id,
+                    ),
+                )
+            )
+            .order_by(ChatMessageModel.created_at.desc(), ChatMessageModel.id.desc())
+            .limit(limit)
+        )
+        messages = list(self.db.scalars(statement))
+        return list(reversed(messages))
+
+    def create_message(self, sender: UserModel, receiver: UserModel, content: str) -> ChatMessageModel:
+        message = ChatMessageModel(
+            sender_id=sender.id,
+            receiver_id=receiver.id,
+            content=content.strip(),
+        )
+        self.db.add(message)
+        self.db.commit()
+        self.db.refresh(message)
+        return message
+
+    def mark_conversation_read(self, current_user: UserModel, peer_id: int) -> int:
+        statement = (
+            update(ChatMessageModel)
+            .where(ChatMessageModel.sender_id == peer_id)
+            .where(ChatMessageModel.receiver_id == current_user.id)
+            .where(ChatMessageModel.is_read.is_(False))
+            .values(is_read=True)
+        )
+        result = self.db.execute(statement)
+        self.db.commit()
+        return result.rowcount or 0
 
 
 def ensure_default_admin(db: Session, username: str, password: str) -> None:

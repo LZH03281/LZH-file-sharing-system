@@ -48,6 +48,23 @@ class ApiClient:
     def list_users(self) -> list[dict[str, Any]]:
         return self._request("GET", "/auth/users")
 
+    def list_chat_users(self) -> list[dict[str, Any]]:
+        return self._request("GET", "/chat/users")
+
+    def get_chat_history(self, peer_id: int) -> list[dict[str, Any]]:
+        return self._request("GET", f"/chat/history/{peer_id}")
+
+    def chat_ws_url(self) -> str:
+        if not self.access_token:
+            raise ApiError("请先登录", 401, "NOT_AUTHENTICATED")
+        if self.base_url.startswith("https://"):
+            base = "wss://" + self.base_url[len("https://") :]
+        elif self.base_url.startswith("http://"):
+            base = "ws://" + self.base_url[len("http://") :]
+        else:
+            base = self.base_url
+        return f"{base}/chat/ws?token={self.access_token}"
+
     def create_user(self, username: str, password: str, role: str = "user") -> dict[str, Any]:
         return self._request(
             "POST",

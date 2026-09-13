@@ -27,6 +27,12 @@ def auth_headers(client: TestClient, username: str = "admin", password: str = "a
     return {"Authorization": f"Bearer {token}"}
 
 
+def auth_token(client: TestClient, username: str = "admin", password: str = "admin123") -> str:
+    response = client.post("/auth/login", json={"username": username, "password": password})
+    assert response.status_code == 200
+    return response.json()["access_token"]
+
+
 def create_user(
     client: TestClient,
     username: str,
@@ -556,3 +562,50 @@ def test_only_admin_can_view_logs(tmp_path: Path) -> None:
     export_response = client.get("/logs/export", headers=alice_headers)
     assert export_response.status_code == 403
     assert export_response.json()["error"]["code"] == "PERMISSION_DENIED"
+
+
+def test_chat_users_and_history(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    alice = create_user(client, "chat_alice", "alice123")
+    bob = create_user(client, "chat_bob", "bob123")
+    alice_headers = auth_headers(client, "chat_alice", "alice123")
+    bob_headers = auth_headers(client, "chat_bob", "bob123")
+
+    users_response = client.get("/chat/users", headers=alice_headers)
+    assert users_response.status_code == 200
+    assert any(user["id"] == bob["id"] and user["online"] is False for user in users_response.json())
+    assert all(user["id"] != alice["id"] for user in users_response.json())
+
+    alice_token = auth_token(client, "chat_alice", "alice123")
+    with client.websocket_connect(f"/chat/ws?token={alice_token}") as websocket:
+        assert websocket.receive_json()["type"] == "system"
+        users_online_response = client.get("/chat/users", headers=bob_headers)
+        assert any(user["id"] == alice["id"] and user["online"] is True for user in users_online_response.json())
+        websocket.send_json({"receiver_id": bob["id"], "content": "你好 Bob"})
+        event = websocket.receive_json()
+        assert event["type"] == "message"
+        assert event["message"]["content"] == "你好 Bob"
+        assert event["message"]["sender_id"] == alice["id"]
+        assert event["message"]["receiver_id"] == bob["id"]
+
+    history_response = client.get(f"/chat/history/{alice['id']}", headers=bob_headers)
+    assert history_response.status_code == 200
+    history = history_response.json()
+    assert len(history) == 1
+    assert history[0]["content"] == "你好 Bob"
+    assert history[0]["sender_name"] == "chat_alice"
+    assert history[0]["receiver_name"] == "chat_bob"
+
+
+def test_chat_websocket_rejects_invalid_message(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    create_user(client, "alice_ws", "alice123")
+    alice_token = auth_token(client, "alice_ws", "alice123")
+
+    with client.websocket_connect(f"/chat/ws?token={alice_token}") as alice_ws:
+        assert alice_ws.receive_json()["type"] == "system"
+        alice_ws.send_json({"receiver_id": 9999, "content": "无效接收者"})
+        event = alice_ws.receive_json()
+        assert event["type"] == "error"
+        assert "不存在" in event["message"]
+

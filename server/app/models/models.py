@@ -21,6 +21,14 @@ class UserModel(Base):
     )
 
     files: Mapped[list["FileModel"]] = relationship(back_populates="owner")
+    sent_messages: Mapped[list["ChatMessageModel"]] = relationship(
+        back_populates="sender",
+        foreign_keys="ChatMessageModel.sender_id",
+    )
+    received_messages: Mapped[list["ChatMessageModel"]] = relationship(
+        back_populates="receiver",
+        foreign_keys="ChatMessageModel.receiver_id",
+    )
 
 
 class FileModel(Base):
@@ -61,4 +69,29 @@ class OperationLogModel(Base):
         default=lambda: datetime.now(timezone.utc),
         index=True,
         nullable=False,
+    )
+
+
+class ChatMessageModel(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    receiver_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    content: Mapped[str] = mapped_column(String(1000), nullable=False)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+        nullable=False,
+    )
+
+    sender: Mapped[UserModel] = relationship(
+        back_populates="sent_messages",
+        foreign_keys=[sender_id],
+    )
+    receiver: Mapped[UserModel] = relationship(
+        back_populates="received_messages",
+        foreign_keys=[receiver_id],
     )
