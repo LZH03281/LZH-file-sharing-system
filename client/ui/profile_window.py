@@ -2,7 +2,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 from api_client.client import ApiClient
-from ui.style import APP_STYLE
+from ui.style import get_app_style
 
 
 class ProfileDialog(QDialog):
@@ -11,7 +11,7 @@ class ProfileDialog(QDialog):
         self.api_client = api_client
         self.setWindowTitle("个人主页")
         self.resize(420, 300)
-        self.setStyleSheet(APP_STYLE)
+        self.setStyleSheet(get_app_style())
 
         user = self.api_client.current_user or {}
         role = user.get("role", "user")

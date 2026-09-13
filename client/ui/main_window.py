@@ -22,9 +22,11 @@ from PyQt6.QtWidgets import (
 )
 
 from api_client.client import ApiClient, ApiError
+from ui.branding import create_logo_label
 from ui.chat_window import ChatDialog
 from ui.profile_window import ProfileDialog
-from ui.style import APP_STYLE
+from ui.style import get_app_style
+from ui.theme_palette import ThemePaletteButton
 from workers.transfer_worker import TransferThread
 
 
@@ -55,7 +57,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("共享文件服务器")
         self.setMinimumSize(1200, 720)
         self.resize(1280, 760)
-        self.setStyleSheet(APP_STYLE)
+        self.setStyleSheet(get_app_style())
 
         root = QWidget()
         root_layout = QHBoxLayout()
@@ -88,9 +90,8 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(16, 18, 16, 18)
         layout.setSpacing(8)
 
-        logo = QLabel("共享文件服务器\nFileShare")
+        logo = create_logo_label(176, 58, "共享文件服务器\nFileShare")
         logo.setObjectName("sidebarLogo")
-        logo.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(logo)
         layout.addSpacing(12)
 
@@ -176,6 +177,9 @@ class MainWindow(QMainWindow):
         quick_layout.addWidget(browse_shortcut)
         quick_layout.addWidget(mine_shortcut)
         quick_layout.addStretch()
+
+        self.palette_button = ThemePaletteButton(self)
+        quick_layout.addWidget(self.palette_button)
         welcome_layout.addWidget(self.home_welcome_label)
         welcome_layout.addWidget(self.home_role_label)
         welcome_layout.addSpacing(8)
@@ -211,6 +215,7 @@ class MainWindow(QMainWindow):
         recent_layout.addWidget(self.recent_activity_card, 1)
         layout.addLayout(recent_layout, 1)
         return page
+
 
     def create_stat_card(self, title: str, value_label: QLabel) -> QFrame:
         card = QFrame()

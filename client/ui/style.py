@@ -1,3 +1,7 @@
+import colorsys
+import re
+
+
 APP_STYLE = """
 QWidget {
     background: #fff7ea;
@@ -329,4 +333,165 @@ QProgressBar::chunk {
     background: #f4b860;
     border-radius: 9px;
 }
-"""
+
+QPushButton#paletteButton {
+    background: #fff2dc;
+    border: 1px solid #edcfa5;
+    color: #7a4b1f;
+}
+
+QPushButton#paletteButton:hover {
+    background: #ffe6bd;
+    border: 1px solid #e6a24e;
+}
+
+QMenu {
+    background: #fffdf8;
+    color: #3f3428;
+    border: 1px solid #f0d9b8;
+    border-radius: 10px;
+    padding: 6px;
+}
+
+QMenu::item {
+    border-radius: 8px;
+    padding: 8px 28px 8px 12px;
+}
+
+QMenu::item:selected {
+    background: #ffe2af;
+    color: #4d3520;
+}"""
+
+
+DEFAULT_THEME_KEY = "rena"
+THEME_ORDER = ("murasame", "yoshino", "mako", "rena")
+THEMES = {
+    "murasame": {
+        "label": "丛雨",
+        "swatch_color": "#7ada98",
+        "hue_offset": 103.0,
+        "saturation_scale": 0.65,
+    },
+    "yoshino": {
+        "label": "芳乃",
+        "swatch_color": "#da7a96",
+        "hue_offset": -53.0,
+        "saturation_scale": 0.65,
+    },
+    "mako": {
+        "label": "茉子",
+        "swatch_color": "#7aa9da",
+        "hue_offset": 175.0,
+        "saturation_scale": 0.65,
+    },
+    "rena": {
+        "label": "蕾娜",
+        "swatch_color": "#f4b860",
+        "hue_offset": 0.0,
+        "saturation_scale": 1.0,
+    },
+}
+
+_PRESERVED_THEME_COLORS = frozenset(
+    {
+        "#bf5a3c",
+        "#c7e4a5",
+        "#e67850",
+        "#eaf7dc",
+        "#f08b66",
+        "#ffffff",
+    }
+)
+_CURRENT_THEME_KEY = DEFAULT_THEME_KEY
+_HEX_COLOR_PATTERN = re.compile(r"#[0-9a-fA-F]{6}")
+
+
+def _shift_color(hex_color: str, hue_offset: float, saturation_scale: float) -> str:
+    value = hex_color.lstrip("#")
+    red, green, blue = (int(value[index : index + 2], 16) / 255 for index in (0, 2, 4))
+    hue, lightness, saturation = colorsys.rgb_to_hls(red, green, blue)
+    hue = (hue + hue_offset / 360.0) % 1.0
+    saturation = min(1.0, saturation * saturation_scale)
+    red, green, blue = colorsys.hls_to_rgb(hue, lightness, saturation)
+    return "#{:02x}{:02x}{:02x}".format(
+        round(red * 255),
+        round(green * 255),
+        round(blue * 255),
+    )
+
+
+def _theme_color_map(theme_key: str | None = None) -> dict[str, str]:
+    key = theme_key or _CURRENT_THEME_KEY
+    if key not in THEMES:
+        raise KeyError(f"Unknown theme: {key}")
+    definition = THEMES[key]
+    if key == DEFAULT_THEME_KEY:
+        return {}
+    return {
+        color: (
+            color
+            if color in _PRESERVED_THEME_COLORS
+            else _shift_color(
+                color,
+                float(definition["hue_offset"]),
+                float(definition["saturation_scale"]),
+            )
+        )
+        for color in {match.group(0).lower() for match in _HEX_COLOR_PATTERN.finditer(APP_STYLE)}
+    }
+
+
+def get_app_style(theme_key: str | None = None) -> str:
+    key = theme_key or _CURRENT_THEME_KEY
+    color_map = _theme_color_map(key)
+    if not color_map:
+        return APP_STYLE
+    return _HEX_COLOR_PATTERN.sub(
+        lambda match: color_map.get(match.group(0).lower(), match.group(0)),
+        APP_STYLE,
+    )
+
+
+def set_current_theme(theme_key: str) -> str:
+    global _CURRENT_THEME_KEY
+    if theme_key not in THEMES:
+        raise KeyError(f"Unknown theme: {theme_key}")
+    _CURRENT_THEME_KEY = theme_key
+    return get_app_style(theme_key)
+
+
+def get_current_theme_key() -> str:
+    return _CURRENT_THEME_KEY
+
+
+def get_theme_label(theme_key: str | None = None) -> str:
+    key = theme_key or _CURRENT_THEME_KEY
+    return str(THEMES[key]["label"])
+
+
+def get_chat_palette(theme_key: str | None = None) -> dict[str, str]:
+    key = theme_key or _CURRENT_THEME_KEY
+    if key not in THEMES:
+        raise KeyError(f"Unknown theme: {key}")
+    definition = THEMES[key]
+
+    def themed(color: str) -> str:
+        if key == DEFAULT_THEME_KEY or color in _PRESERVED_THEME_COLORS:
+            return color
+        return _shift_color(
+            color,
+            float(definition["hue_offset"]),
+            float(definition["saturation_scale"]),
+        )
+
+    return {
+        "text": themed("#3f3428"),
+        "muted": themed("#9b8064"),
+        "mine_bubble": themed("#ffe0a8"),
+        "mine_border": themed("#efc482"),
+        "mine_name": themed("#8a4b1f"),
+        "peer_bubble": "#ffffff",
+        "peer_border": themed("#f0d9b8"),
+        "peer_name": themed("#6f4218"),
+    }

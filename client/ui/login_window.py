@@ -14,7 +14,9 @@ from PyQt6.QtWidgets import (
 )
 
 from api_client.client import ApiClient, ApiError
-from ui.style import APP_STYLE
+from ui.branding import create_logo_label
+from ui.style import get_app_style
+from ui.theme_palette import ThemePaletteButton
 
 
 class LoginWindow(QWidget):
@@ -25,7 +27,7 @@ class LoginWindow(QWidget):
         self.api_client = api_client
         self.setWindowTitle("共享文件服务器 - 登录")
         self.resize(460, 320)
-        self.setStyleSheet(APP_STYLE)
+        self.setStyleSheet(get_app_style())
 
         self.server_input = QLineEdit("http://127.0.0.1:8000")
         self.username_input = QLineEdit("admin")
@@ -40,7 +42,7 @@ class LoginWindow(QWidget):
         self.register_button.clicked.connect(self.open_register_dialog)
         self.password_input.returnPressed.connect(self.login)
 
-        title_label = QLabel("共享文件服务器")
+        title_label = create_logo_label(220, 56, "共享文件服务器")
         title_label.setObjectName("titleLabel")
         subtitle_label = QLabel("登录后即可上传、下载和管理共享文件")
         subtitle_label.setObjectName("subtitleLabel")
@@ -57,7 +59,12 @@ class LoginWindow(QWidget):
         card_layout = QVBoxLayout()
         card_layout.setContentsMargins(28, 26, 28, 26)
         card_layout.setSpacing(16)
-        card_layout.addWidget(title_label)
+        header_layout = QHBoxLayout()
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        self.palette_button = ThemePaletteButton(self, show_theme_name=False)
+        header_layout.addWidget(self.palette_button)
+        card_layout.addLayout(header_layout)
         card_layout.addWidget(subtitle_label)
         card_layout.addLayout(form)
         card_layout.addWidget(self.status_label)
@@ -106,7 +113,7 @@ class RegisterDialog(QDialog):
         self.api_client = api_client
         self.username = ""
         self.setWindowTitle("注册普通用户")
-        self.setStyleSheet(APP_STYLE)
+        self.setStyleSheet(get_app_style())
         self.resize(380, 240)
 
         self.username_input = QLineEdit()

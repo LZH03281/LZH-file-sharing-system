@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 )
 
 from api_client.client import ApiClient, ApiError
-from ui.style import APP_STYLE
+from ui.style import get_app_style, get_chat_palette
 from workers.chat_worker import ChatWebSocketThread
 
 
@@ -30,7 +30,7 @@ class ChatDialog(QDialog):
 
         self.setWindowTitle("实时聊天")
         self.resize(900, 620)
-        self.setStyleSheet(APP_STYLE)
+        self.setStyleSheet(get_app_style())
 
         title = QLabel("实时聊天")
         title.setObjectName("titleLabel")
@@ -218,20 +218,21 @@ class ChatDialog(QDialog):
         created_at = self.format_time(str(message.get("created_at", "")))
         content = escape(str(message.get("content", ""))).replace("\n", "<br>")
         align = "right" if mine else "left"
-        bubble_color = "#ffe0a8" if mine else "#ffffff"
-        border_color = "#efc482" if mine else "#f0d9b8"
-        name_color = "#8a4b1f" if mine else "#6f4218"
+        palette = get_chat_palette()
+        bubble_color = palette["mine_bubble"] if mine else palette["peer_bubble"]
+        border_color = palette["mine_border"] if mine else palette["peer_border"]
+        name_color = palette["mine_name"] if mine else palette["peer_name"]
         self.messages_view.append(
             f"""
             <div align="{align}" style="margin: 8px 0;">
-              <span style="color:#9b8064; font-size:12px;">{escape(sender)} · {escape(created_at)}</span><br>
+              <span style="color:{palette['muted']}; font-size:12px;">{escape(sender)} · {escape(created_at)}</span><br>
               <span style="
                 display:inline-block;
                 background:{bubble_color};
                 border:1px solid {border_color};
                 border-radius:12px;
                 padding:8px 10px;
-                color:#3f3428;
+                color:{palette['text']};
                 max-width:520px;
               "><b style="color:{name_color};"></b>{content}</span>
             </div>

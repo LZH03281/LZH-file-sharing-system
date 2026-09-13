@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 )
 
 from api_client.client import ApiClient, ApiError
-from ui.style import APP_STYLE
+from ui.style import get_app_style
 
 
 INITIAL_ADMIN_USERNAME = "admin"
@@ -35,7 +35,7 @@ class AccountDialog(QDialog):
 
         self.setWindowTitle("账号管理")
         self.resize(780, 540)
-        self.setStyleSheet(APP_STYLE)
+        self.setStyleSheet(get_app_style())
 
         title = QLabel("账号管理")
         title.setObjectName("titleLabel")
