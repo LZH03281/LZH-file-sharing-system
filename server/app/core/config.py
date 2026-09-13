@@ -12,7 +12,7 @@ class Settings:
     access_token_expire_minutes: int = 60
     default_admin_username: str = "admin"
     default_admin_password: str = "admin123"
-    antivirus_enabled: bool = True
+    antivirus_enabled: bool = False
     clamscan_path: str = "clamscan"
     scan_timeout: int = 120
 
@@ -37,7 +37,7 @@ class Settings:
             data_dir=data_dir,
             max_upload_size=max_upload_size,
             database_url=os.getenv("CFS_DATABASE_URL"),
-            antivirus_enabled=os.getenv("CFS_ANTIVIRUS_ENABLED", "true").lower() != "false",
+            antivirus_enabled=os.getenv("CFS_ANTIVIRUS_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
             clamscan_path=os.getenv("CFS_CLAMSCAN_PATH", "clamscan"),
             scan_timeout=int(os.getenv("CFS_SCAN_TIMEOUT", "120")),
             secret_key=os.getenv("CFS_SECRET_KEY", "dev-secret-change-me-please-set-env"),

@@ -8,7 +8,7 @@
 
 ## 行为
 
-- 默认启用病毒扫描：上传写入 UUID 临时文件，扫描通过才移动至存储目录并入库。失败删除临时文件并记录原因代码。
+- 本地开发默认不强制启用病毒扫描，避免未安装 ClamAV 的虚拟机无法完成课程演示；上传仍会写入 UUID 临时文件，并保留危险后缀与文件头检查。正式部署建议通过环境变量启用 ClamAV，扫描通过才移动至存储目录并入库，失败删除临时文件并记录原因代码。
 - 下载前复查，包括历史文件；被拦截的历史文件保留供管理员删除，不提供文件内容。下载使用附件、二进制类型和 `nosniff`，避免浏览器主动解释文件。
 - 大小写、全角字符规范化后检查所有后缀，拒绝可执行文件、脚本、快捷方式、磁盘映像和宏文档；检查常见 PE、ELF、Mach-O、Java 和 shebang 文件头，防止简单改名绕过。完整后缀表见 `server/app/services/file_security.py`。
 - ClamAV 拒绝病毒、加密文档/压缩包和超过扫描限制的内容。解包扫描总量限制为上传上限的四倍，嵌套最多 16 层、文件最多 1000 个。
@@ -52,7 +52,7 @@ sudo journalctl -u shared-file-server -n 50
 
 ## 配置与验收
 
-`CFS_ANTIVIRUS_ENABLED` 默认 `true`，只有明确设为 `false` 才关闭病毒扫描（类型防护仍保留）。仅限无 ClamAV 的本地开发，不可用于实际部署。`CFS_CLAMSCAN_PATH` 指定程序路径，不能附带命令参数。`CFS_SCAN_TIMEOUT` 默认 120 秒，客户端默认等待 150 秒，增大前者时也需调整客户端。
+`CFS_ANTIVIRUS_ENABLED` 开发默认值为 `false`，适合未安装 ClamAV 的本地或虚拟机调试；类型防护仍保留。正式 Ubuntu 部署请按 `deploy/server.env.example` 设置为 `true`，并先安装 ClamAV、更新病毒库。`CFS_CLAMSCAN_PATH` 指定程序路径，不能附带命令参数。`CFS_SCAN_TIMEOUT` 默认 120 秒，客户端默认等待 150 秒，增大前者时也需调整客户端。
 
 `/health` 仅表示 API 可访问，不表示病毒扫描可用。部署后实际上传普通文本应成功；用 [ClamAV 官方测试说明](https://docs.clamav.net/manual/Usage/Scanning.html) 中的无害 EICAR 测试文件验证拒绝响应、空临时目录和失败日志；不要下载真实恶意软件。用不存在的 `CFS_CLAMSCAN_PATH` 重启后应拒绝普通文本上传，验证完恢复配置。
 

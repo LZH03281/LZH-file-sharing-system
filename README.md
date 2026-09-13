@@ -82,7 +82,7 @@ Ubuntu Server 部署步骤见 [部署说明](docs/ubuntu-deploy.md)。
 
 ## 文件病毒筛查与风险防护
 
-已接入默认启用的 **ClamAV** 本地扫描。服务端调用 `clamscan`，在文件写入临时目录后、正式入库前完成扫描：
+已接入可选启用的 **ClamAV** 本地扫描。服务端调用 `clamscan`，在文件写入临时目录后、正式入库前完成扫描：
 
 - 扫描通过：继续保存文件元数据并允许下载；
 - 扫描失败或发现病毒：删除临时文件，返回明确错误提示，并写入操作日志；
@@ -90,7 +90,7 @@ Ubuntu Server 部署步骤见 [部署说明](docs/ubuntu-deploy.md)。
 
 同时增加危险后缀、可执行文件头检查、扫描超时和并发限制。下载前再次扫描，包括历史文件，并添加安全响应头。
 
-Ubuntu 必须安装 ClamAV 并更新病毒库，否则上传和下载会被拒绝。无杀毒引擎的本地开发可显式设置 `CFS_ANTIVIRUS_ENABLED=false`，此时没有病毒防护。
+本地开发和课程演示默认不强制启用 ClamAV，以免未安装杀毒引擎的虚拟机无法上传文件。正式部署到 Ubuntu 时建议安装 ClamAV、更新病毒库，并在环境变量中设置 `CFS_ANTIVIRUS_ENABLED=true`；如果扫描器不可用，上传和下载会被保守拒绝。
 
 完整配置、GitHub 参考、限制和验收步骤见 [文件安全说明](docs/file-security.md)。部署模板位于 `deploy/server.env.example` 和 `deploy/shared-file-server.service`。
 
