@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse, Response
 
 from app.api.deps import get_current_user, get_file_repository, get_settings, get_storage_service
 from app.core.config import Settings
+from app.core.content_types import resolve_content_type
 from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
 from app.models.models import UserModel
@@ -124,7 +125,7 @@ def download_file(
     )
     return FileResponse(
         path=path,
-        media_type="application/octet-stream",
+        media_type=resolve_content_type(record.original_name, record.content_type),
         headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"},
         filename=record.original_name,
     )

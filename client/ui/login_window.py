@@ -1,4 +1,5 @@
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QTextOption
 from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -9,12 +10,14 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from api_client.client import ApiClient, ApiError
-from ui.branding import create_logo_label
+from ui.branding import create_logo_label, load_icon, load_pixmap
 from ui.style import get_app_style
 from ui.theme_palette import ThemePaletteButton
 
@@ -33,6 +36,18 @@ class LoginWindow(QWidget):
         self.username_input = QLineEdit("admin")
         self.password_input = QLineEdit("admin123")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.eye_open_icon = load_icon("eye_open.png")
+        self.eye_closed_icon = load_icon("eye_closed.png")
+        self.password_toggle = QToolButton()
+        self.password_toggle.setIcon(self.eye_closed_icon)
+        self.password_toggle.setIconSize(QSize(32, 32))
+        self.password_toggle.setObjectName("passwordToggle")
+        self.password_toggle.setCheckable(True)
+        self.password_toggle.setToolTip("显示密码")
+        self.password_toggle.setAccessibleName("显示或隐藏密码")
+        self.password_toggle.setFixedSize(40, 40)
+        self.password_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.password_toggle.toggled.connect(self.toggle_password_visibility)
         self.status_label = QLabel("")
         self.status_label.setObjectName("statusLabel")
         self.login_button = QPushButton("登录")
@@ -52,7 +67,13 @@ class LoginWindow(QWidget):
         form.setSpacing(14)
         form.addRow("服务器", self.server_input)
         form.addRow("用户名", self.username_input)
-        form.addRow("密码", self.password_input)
+        password_row = QWidget()
+        password_row_layout = QHBoxLayout(password_row)
+        password_row_layout.setContentsMargins(0, 0, 0, 0)
+        password_row_layout.setSpacing(6)
+        password_row_layout.addWidget(self.password_input, 1)
+        password_row_layout.addWidget(self.password_toggle)
+        form.addRow("密码", password_row)
 
         card = QFrame()
         card.setObjectName("card")
@@ -80,6 +101,12 @@ class LoginWindow(QWidget):
         layout.addWidget(card)
         self.setLayout(layout)
 
+    def toggle_password_visibility(self, visible: bool) -> None:
+        echo_mode = QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password
+        self.password_input.setEchoMode(echo_mode)
+        self.password_toggle.setIcon(self.eye_open_icon if visible else self.eye_closed_icon)
+        self.password_toggle.setToolTip("隐藏密码" if visible else "显示密码")
+
     def login(self) -> None:
         self.login_button.setEnabled(False)
         self.status_label.setText("正在登录...")
@@ -90,8 +117,8 @@ class LoginWindow(QWidget):
                 self.password_input.text(),
             )
         except ApiError as exc:
-            self.status_label.setText(exc.message)
-            QMessageBox.warning(self, "登录失败", exc.message)
+            self.status_label.setText("")
+            LoginErrorDialog(exc.message or "登录失败", self).exec()
         else:
             self.status_label.setText("")
             self.login_success.emit()
@@ -105,6 +132,60 @@ class LoginWindow(QWidget):
             self.username_input.setText(dialog.username)
             self.password_input.setText("")
             self.status_label.setText("注册成功，请使用新账号登录")
+
+
+class LoginErrorDialog(QDialog):
+    def __init__(self, message: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("登录失败")
+        self.resize(620, 310)
+        self.setStyleSheet(get_app_style())
+
+        title_label = QLabel("登录失败")
+        title_label.setObjectName("sectionTitleLabel")
+
+        icon_label = QLabel()
+        icon_label.setObjectName("errorIconLabel")
+        icon_label.setFixedSize(120, 120)
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_pixmap = load_pixmap("login_error.png")
+        if not icon_pixmap.isNull():
+            icon_label.setPixmap(
+                icon_pixmap.scaled(
+                    114,
+                    114,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+        else:
+            icon_label.setText("!")
+
+        message_view = QTextEdit()
+        message_view.setObjectName("messageView")
+        message_view.setReadOnly(True)
+        message_view.setAcceptRichText(False)
+        message_view.setPlainText(message)
+        message_view.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        message_view.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+        message_view.setMinimumHeight(120)
+
+        message_row = QHBoxLayout()
+        message_row.setSpacing(14)
+        message_row.addWidget(icon_label)
+        message_row.addWidget(message_view, 1)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("确定")
+        buttons.accepted.connect(self.accept)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setSpacing(12)
+        layout.addWidget(title_label)
+        layout.addLayout(message_row)
+        layout.addWidget(buttons)
+        self.setLayout(layout)
 
 
 class RegisterDialog(QDialog):
@@ -131,7 +212,13 @@ class RegisterDialog(QDialog):
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         form.setSpacing(14)
         form.addRow("用户名", self.username_input)
-        form.addRow("密码", self.password_input)
+        password_row = QWidget()
+        password_row_layout = QHBoxLayout(password_row)
+        password_row_layout.setContentsMargins(0, 0, 0, 0)
+        password_row_layout.setSpacing(6)
+        password_row_layout.addWidget(self.password_input, 1)
+        password_row_layout.addWidget(self.password_toggle)
+        form.addRow("密码", password_row)
         form.addRow("确认密码", self.confirm_input)
 
         self.buttons = QDialogButtonBox(

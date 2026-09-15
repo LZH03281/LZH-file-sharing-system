@@ -345,6 +345,23 @@ QPushButton#paletteButton:hover {
     border: 1px solid #e6a24e;
 }
 
+QToolButton#passwordToggle {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+QToolButton#passwordToggle:hover,
+QToolButton#passwordToggle:checked {
+    background: transparent;
+    border: none;
+}
+
+QLabel#errorIconLabel {
+    background: transparent;
+    border: none;
+}
+
 QMenu {
     background: #fffdf8;
     color: #3f3428;

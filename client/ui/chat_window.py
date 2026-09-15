@@ -16,7 +16,9 @@ from PyQt6.QtWidgets import (
 )
 
 from api_client.client import ApiClient, ApiError
+from ui.error_dialog import show_error_dialog
 from ui.style import get_app_style, get_chat_palette
+from ui.time_utils import format_local_datetime
 from workers.chat_worker import ChatWebSocketThread
 
 
@@ -126,7 +128,7 @@ class ChatDialog(QDialog):
         try:
             self.users = self.api_client.list_chat_users()
         except ApiError as exc:
-            QMessageBox.warning(self, "加载失败", exc.message)
+            show_error_dialog(self, "加载失败", exc.message)
             return
         selected_id = self.current_peer.get("id") if self.current_peer else None
         self.user_list.clear()
@@ -162,7 +164,7 @@ class ChatDialog(QDialog):
         try:
             messages = self.api_client.get_chat_history(self.current_peer["id"])
         except ApiError as exc:
-            QMessageBox.warning(self, "加载历史失败", exc.message)
+            show_error_dialog(self, "加载历史失败", exc.message)
             return
         self.messages_view.clear()
         for message in messages:
@@ -172,7 +174,7 @@ class ChatDialog(QDialog):
         try:
             ws_url = self.api_client.chat_ws_url()
         except ApiError as exc:
-            QMessageBox.warning(self, "聊天不可用", exc.message)
+            show_error_dialog(self, "聊天不可用", exc.message)
             return
         self.chat_thread = ChatWebSocketThread(ws_url)
         self.chat_thread.connected.connect(self.on_connected)
@@ -189,7 +191,7 @@ class ChatDialog(QDialog):
         if not content:
             return
         if len(content) > 1000:
-            QMessageBox.warning(self, "发送失败", "聊天内容不能超过 1000 字")
+            show_error_dialog(self, "发送失败", "聊天内容不能超过 1000 字")
             return
         self.chat_thread.send_message(self.current_peer["id"], content)
         self.message_input.clear()
@@ -209,7 +211,7 @@ class ChatDialog(QDialog):
         self.status_label.setObjectName("offlinePill")
         self.status_label.style().unpolish(self.status_label)
         self.status_label.style().polish(self.status_label)
-        QMessageBox.warning(self, "聊天提示", message)
+        show_error_dialog(self, "聊天提示", message)
 
     def append_message(self, message: dict) -> None:
         current_user = self.api_client.current_user or {}
@@ -261,7 +263,4 @@ class ChatDialog(QDialog):
 
     @staticmethod
     def format_time(value: str) -> str:
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).strftime("%m-%d %H:%M")
-        except ValueError:
-            return value
+        return format_local_datetime(value, "%m-%d %H:%M")

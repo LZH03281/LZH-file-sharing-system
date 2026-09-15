@@ -13,6 +13,10 @@ def load_icon(filename: str) -> QIcon:
     return QIcon(str(ICON_DIR / filename))
 
 
+def load_pixmap(filename: str) -> QPixmap:
+    return QPixmap(str(ICON_DIR / filename))
+
+
 def create_logo_label(max_width: int, max_height: int, fallback_text: str) -> QLabel:
     label = QLabel()
     pixmap = QPixmap(str(LOGO_PATH))

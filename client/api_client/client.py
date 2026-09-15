@@ -1,3 +1,4 @@
+import mimetypes
 from pathlib import Path
 from typing import Any, Callable
 
@@ -106,7 +107,8 @@ class ApiClient:
         if progress:
             progress(0, file_path.stat().st_size)
         with file_path.open("rb") as source:
-            files = {"file": (file_path.name, source, "application/octet-stream")}
+            content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+            files = {"file": (file_path.name, source, content_type)}
             form_data = {"visibility": visibility}
             if access_password:
                 form_data["access_password"] = access_password

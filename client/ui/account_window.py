@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -16,7 +14,9 @@ from PyQt6.QtWidgets import (
 )
 
 from api_client.client import ApiClient, ApiError
+from ui.error_dialog import show_error_dialog
 from ui.style import get_app_style
+from ui.time_utils import format_local_datetime
 
 
 INITIAL_ADMIN_USERNAME = "admin"
@@ -115,7 +115,7 @@ class AccountDialog(QDialog):
         try:
             self.users = self.api_client.list_users()
         except ApiError as exc:
-            QMessageBox.warning(self, "刷新失败", exc.message)
+            show_error_dialog(self, "刷新失败", exc.message)
             return
         self.render_users()
 
@@ -124,15 +124,15 @@ class AccountDialog(QDialog):
         password = self.password_input.text()
         role = self.role_box.currentData()
         if not username:
-            QMessageBox.warning(self, "创建失败", "用户名不能为空")
+            show_error_dialog(self, "创建失败", "用户名不能为空")
             return
         if len(password) < 6:
-            QMessageBox.warning(self, "创建失败", "密码至少 6 位")
+            show_error_dialog(self, "创建失败", "密码至少 6 位")
             return
         try:
             self.api_client.create_user(username, password, role)
         except ApiError as exc:
-            QMessageBox.warning(self, "创建失败", exc.message)
+            show_error_dialog(self, "创建失败", exc.message)
             return
         self.username_input.clear()
         self.password_input.clear()
@@ -157,7 +157,7 @@ class AccountDialog(QDialog):
         try:
             self.api_client.set_user_enabled(user["id"], enabled)
         except ApiError as exc:
-            QMessageBox.warning(self, "操作失败", exc.message)
+            show_error_dialog(self, "操作失败", exc.message)
             return
         self.refresh_users()
 
@@ -178,7 +178,7 @@ class AccountDialog(QDialog):
         try:
             self.api_client.delete_user(user["id"])
         except ApiError as exc:
-            QMessageBox.warning(self, "删除失败", exc.message)
+            show_error_dialog(self, "删除失败", exc.message)
             return
         QMessageBox.information(self, "删除成功", "账号已删除")
         self.refresh_users()
@@ -194,13 +194,13 @@ class AccountDialog(QDialog):
         current_user = self.api_client.current_user or {}
         if user["id"] == current_user.get("id"):
             message = "不能删除当前登录账号" if delete else "不能停用/启用当前登录账号"
-            QMessageBox.warning(self, "操作不可用", message)
+            show_error_dialog(self, "操作不可用", message)
             return False
         if user["role"] == "admin" and user["username"] == INITIAL_ADMIN_USERNAME:
-            QMessageBox.warning(self, "操作不可用", "初始 admin 账号不可删除或停用")
+            show_error_dialog(self, "操作不可用", "初始 admin 账号不可删除或停用")
             return False
         if user["role"] == "admin" and not self.is_initial_admin:
-            QMessageBox.warning(self, "权限不足", "只有初始 admin 可以管理管理员账号")
+            show_error_dialog(self, "权限不足", "只有初始 admin 可以管理管理员账号")
             return False
         return True
 
@@ -223,7 +223,4 @@ class AccountDialog(QDialog):
 
     @staticmethod
     def format_time(value: str) -> str:
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M")
-        except ValueError:
-            return value
+        return format_local_datetime(value)

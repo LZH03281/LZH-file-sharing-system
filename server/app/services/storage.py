@@ -9,6 +9,7 @@ from starlette.concurrency import run_in_threadpool
 from app.services.file_security import FileSecurityService
 
 from app.core.config import Settings
+from app.core.content_types import resolve_content_type
 from app.core.errors import AppError
 
 
@@ -70,7 +71,7 @@ class StorageService:
             stored_name=stored_name,
             original_name=original_name,
             size=size,
-            content_type=upload.content_type or "application/octet-stream",
+            content_type=resolve_content_type(original_name, upload.content_type),
             sha256=digest.hexdigest(),
         )
 

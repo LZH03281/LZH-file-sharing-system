@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.core.content_types import resolve_content_type
 from app.models.models import FileModel
 
 
@@ -33,7 +34,7 @@ class FileSummary(BaseModel):
             id=record.id,
             original_name=record.original_name,
             size=record.size,
-            content_type=record.content_type,
+            content_type=resolve_content_type(record.original_name, record.content_type),
             visibility="shared",
             owner_id=0,
             owner_name="",
@@ -47,7 +48,7 @@ class FileSummary(BaseModel):
             id=record.id,
             original_name=record.original_name,
             size=record.size,
-            content_type=record.content_type,
+            content_type=resolve_content_type(record.original_name, record.content_type),
             visibility=record.visibility,
             owner_id=record.owner_id,
             owner_name=record.owner.username,

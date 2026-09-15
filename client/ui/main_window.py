@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -25,7 +23,9 @@ from api_client.client import ApiClient, ApiError
 from ui.branding import create_logo_label, load_icon
 from ui.chat_window import ChatDialog
 from ui.profile_window import ProfileDialog
+from ui.error_dialog import show_error_dialog
 from ui.style import get_app_style
+from ui.time_utils import format_local_datetime
 from ui.theme_palette import ThemePaletteButton
 from workers.transfer_worker import TransferThread
 
@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
         self.all_files: list[dict] = []
         self.files: list[dict] = []
         self.file_pages: dict[str, dict] = {}
-        self.current_pages: dict[str, int] = {"center": 1, "shared": 1, "mine": 1}
+        self.current_pages: dict[str, int] = {"center": 1, "mine": 1}
         self.active_file_scope = "center"
         self.page_size = 20
         self.worker: TransferThread | None = None
@@ -68,13 +68,11 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.home_page = self.create_home_page()
         self.file_center_page = self.create_file_page("center", "文件中心", "管理、上传和下载服务器中的文件")
-        self.shared_files_page = self.create_file_page("shared", "共享文件", "查看服务器中的所有共享文件")
         self.my_files_page = self.create_file_page("mine", "我的文件", "查看和管理由当前账号上传的文件")
         self.logs_page = self.create_logs_page()
         self.account_page = self.create_account_page()
         self.stack.addWidget(self.home_page)
         self.stack.addWidget(self.file_center_page)
-        self.stack.addWidget(self.shared_files_page)
         self.stack.addWidget(self.my_files_page)
         self.stack.addWidget(self.logs_page)
         self.stack.addWidget(self.account_page)
@@ -100,7 +98,6 @@ class MainWindow(QMainWindow):
         nav_items = [
             ("home", "首页", "home.png"),
             ("center", "文件中心", "file_center.png"),
-            ("shared", "共享文件", "shared_files.png"),
             ("mine", "我的文件", "my_files.png"),
             ("chat", "实时聊天", "chat.png"),
             ("logs", "操作日志", "logs.png"),
@@ -444,10 +441,10 @@ class MainWindow(QMainWindow):
         return table
 
     def show_page(self, page: str) -> None:
-        indexes = {"home": 0, "center": 1, "shared": 2, "mine": 3, "logs": 4, "account": 5}
+        indexes = {"home": 0, "center": 1, "mine": 2, "logs": 3, "account": 4}
         if page in {"account", "logs"} and not self.current_user_is_admin():
             message = "账号管理需要管理员权限" if page == "account" else "操作日志仅管理员可访问"
-            QMessageBox.warning(self, "权限不足", message)
+            show_error_dialog(self, "权限不足", message)
             return
         self.stack.setCurrentIndex(indexes[page])
         for key, button in self.nav_buttons.items():
@@ -551,8 +548,6 @@ class MainWindow(QMainWindow):
         user = self.api_client.current_user or {}
         if scope == "mine":
             return [item for item in self.all_files if item.get("owner_id") == user.get("id") or item.get("owner_name") == user.get("username")]
-        if scope == "shared":
-            return [item for item in self.all_files if item.get("visibility") == "shared"]
         return list(self.all_files)
 
     def apply_file_filters(self, scope: str) -> None:
@@ -622,7 +617,7 @@ class MainWindow(QMainWindow):
             self.handle_api_error(exc)
             return
         except OSError as exc:
-            QMessageBox.warning(self, "导出失败", f"无法保存日志文件：{exc}")
+            show_error_dialog(self, "导出失败", f"无法保存日志文件：{exc}")
             return
         QMessageBox.information(self, "导出完成", "操作日志已导出")
 
@@ -642,7 +637,7 @@ class MainWindow(QMainWindow):
         try:
             if widgets["search_type_box"].currentData() == "owner_id":
                 if not query.isdigit():
-                    QMessageBox.warning(self, "检索失败", "用户 ID 必须是数字")
+                    show_error_dialog(self, "检索失败", "用户 ID 必须是数字")
                     return
                 result = self.api_client.search_files_by_owner_id(int(query))
             else:
@@ -709,7 +704,7 @@ class MainWindow(QMainWindow):
         if item is None:
             return
         if not item.get("can_delete"):
-            QMessageBox.warning(self, "无法删除", "当前账号没有删除该文件的权限")
+            show_error_dialog(self, "无法删除", "当前账号没有删除该文件的权限")
             return
         reply = QMessageBox.question(
             self,
@@ -742,7 +737,7 @@ class MainWindow(QMainWindow):
         self.refresh_files()
 
     def on_transfer_failed(self, message: str) -> None:
-        QMessageBox.warning(self, "传输失败", message)
+        show_error_dialog(self, "传输失败", message)
 
     def selected_file(self) -> dict | None:
         widgets = self.file_pages[self.active_file_scope]
@@ -779,7 +774,7 @@ class MainWindow(QMainWindow):
             password = password.strip()
             if is_six_digit_or_letter_password(password):
                 return password
-            QMessageBox.warning(self, "密码格式错误", "密码必须是 6 位，只能包含数字、大小写字母")
+            show_error_dialog(self, "密码格式错误", "密码必须是 6 位，只能包含数字、大小写字母")
 
     def previous_page(self, scope: str) -> None:
         if self.current_pages[scope] > 1:
@@ -825,15 +820,15 @@ class MainWindow(QMainWindow):
         password = self.password_input.text()
         role = self.role_box.currentData()
         if not username:
-            QMessageBox.warning(self, "创建失败", "用户名不能为空")
+            show_error_dialog(self, "创建失败", "用户名不能为空")
             return
         if len(password) < 6:
-            QMessageBox.warning(self, "创建失败", "密码至少 6 位")
+            show_error_dialog(self, "创建失败", "密码至少 6 位")
             return
         try:
             self.api_client.create_user(username, password, role)
         except ApiError as exc:
-            QMessageBox.warning(self, "创建失败", exc.message)
+            show_error_dialog(self, "创建失败", exc.message)
             return
         self.username_input.clear()
         self.password_input.clear()
@@ -856,7 +851,7 @@ class MainWindow(QMainWindow):
         try:
             self.api_client.set_user_enabled(user["id"], enabled)
         except ApiError as exc:
-            QMessageBox.warning(self, "操作失败", exc.message)
+            show_error_dialog(self, "操作失败", exc.message)
             return
         self.refresh_users()
 
@@ -875,7 +870,7 @@ class MainWindow(QMainWindow):
         try:
             self.api_client.delete_user(user["id"])
         except ApiError as exc:
-            QMessageBox.warning(self, "删除失败", exc.message)
+            show_error_dialog(self, "删除失败", exc.message)
             return
         QMessageBox.information(self, "删除成功", "账号已删除")
         self.refresh_users()
@@ -892,13 +887,13 @@ class MainWindow(QMainWindow):
         current_user = self.api_client.current_user or {}
         if user["id"] == current_user.get("id"):
             message = "不能删除当前登录账号" if delete else "不能停用/启用当前登录账号"
-            QMessageBox.warning(self, "操作不可用", message)
+            show_error_dialog(self, "操作不可用", message)
             return False
         if user["role"] == "admin" and user["username"] == INITIAL_ADMIN_USERNAME:
-            QMessageBox.warning(self, "操作不可用", "初始 admin 账号不可删除或停用")
+            show_error_dialog(self, "操作不可用", "初始 admin 账号不可删除或停用")
             return False
         if user["role"] == "admin" and not self.current_user_is_initial_admin():
-            QMessageBox.warning(self, "权限不足", "只有初始 admin 可以管理管理员账号")
+            show_error_dialog(self, "权限不足", "只有初始 admin 可以管理管理员账号")
             return False
         return True
 
@@ -921,10 +916,10 @@ class MainWindow(QMainWindow):
 
     def handle_api_error(self, exc: ApiError) -> None:
         if exc.status_code == 401:
-            QMessageBox.warning(self, "登录已失效", exc.message)
+            show_error_dialog(self, "登录已失效", exc.message)
             self.logout_requested.emit()
             return
-        QMessageBox.warning(self, "请求失败", exc.message)
+        show_error_dialog(self, "请求失败", exc.message)
 
     def total_pages(self, files: list[dict]) -> int:
         return max(1, (len(files) + self.page_size - 1) // self.page_size)
@@ -940,7 +935,4 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def format_time(value: str) -> str:
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M")
-        except (TypeError, ValueError):
-            return str(value)
+        return format_local_datetime(value)
